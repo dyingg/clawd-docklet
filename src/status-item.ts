@@ -137,7 +137,7 @@ export function renderPopoverHtml(selected: Anchor): string {
   </ul>
   <div class="sep"></div>
   <ul>
-    <li tabindex="0" id="hide"><span class="mark"></span><span class="label">Hide HUD</span></li>
+    <li tabindex="0" id="hide"><span class="mark"></span><span class="label">Hide Glimpse</span></li>
   </ul>
   <script>
     (function () {
