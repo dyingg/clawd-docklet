@@ -14,11 +14,15 @@ describe("adapter ↔ daemon", () => {
       socketPath: env.CLAWD_DOCKLET_SOCKET,
       pidfilePath: env.CLAWD_DOCKLET_PIDFILE,
       idleMs: 60000,
+      hudMode: "always",
+      docketDisabled: true,
     });
     const sock = await connectDaemon({
       socketPath: env.CLAWD_DOCKLET_SOCKET,
       pidfilePath: env.CLAWD_DOCKLET_PIDFILE,
       idleMs: 60000,
+      hudMode: "always",
+      docketDisabled: true,
     });
     client = new DaemonClient(sock);
   });
