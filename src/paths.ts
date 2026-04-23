@@ -17,6 +17,7 @@ function defaultSocketDir(): string {
     return join(homedir(), "Library", "Application Support", "clawd-docklet");
   }
   if (plat === "win32") {
+    // Named pipes on Windows don't live on the filesystem; pidfile goes in LOCALAPPDATA.
     return process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local", "clawd-docklet");
   }
   return process.env.XDG_RUNTIME_DIR ?? join(homedir(), ".clawd-docklet");
