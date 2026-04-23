@@ -2,9 +2,18 @@
 
 ![Glance HUD preview](media/preview.png)
 
+> ⚠️ **WIP — Work in Progress.** This package is under active development. Expect breaking changes, rough edges, and bugs. Not production-ready. Pin a specific version if you depend on it, and please file issues for anything you hit.
+
 An MCP server that provides a shared HUD — the **glance** — across AI agent sessions. Multiple clients (Claude Code sessions, Codex, etc.) attach to one running server instead of spawning one per client, so every session sees and can update the same on-screen surface.
 
+## Requirements
+
+- **macOS** (the HUD and menu-bar status item are macOS-only for now)
+- **Node.js 18+**
+
 ## Install
+
+Add the MCP server to your agent of choice — `npx` will fetch the latest published version from npm:
 
 ```bash
 # Claude Code
@@ -14,10 +23,29 @@ claude mcp add agent-glance -- npx -y agent-glance
 codex mcp add agent-glance -- npx -y agent-glance
 ```
 
-For local development:
+To pin a version (recommended while WIP):
 
 ```bash
-git clone <this repo>
+claude mcp add agent-glance -- npx -y agent-glance@0.0.1
+```
+
+Once added, restart your agent. The first tool call spawns the daemon; subsequent sessions attach to the same daemon and share the HUD.
+
+## Usage
+
+Inside any connected session, ask the agent to use one of the glance tools:
+
+- *"Write to the glance: `# Build status\n✅ Tests passing`"* → calls `write_glance`
+- *"Hide the glance HUD."* → calls `hide_glance`
+- *"Read the current glance buffer."* → calls `read_glance`
+- *"Edit the glance: replace `failing` with `passing`."* → calls `edit_glance` (requires a prior `read_glance` in the same session)
+
+The HUD anchor (top-right / top-left / bottom-right / bottom-left / follow-cursor / hide) is controlled from the macOS menu-bar status item that appears when the daemon starts.
+
+## Local development
+
+```bash
+git clone https://github.com/dyingg/agent-glance.git
 cd agent-glance
 npm install
 npm run build
