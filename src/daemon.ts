@@ -147,8 +147,13 @@ export async function runDaemonMain() {
         console.error("docket: initial placeholder failed:", err);
       });
     }
+    let shuttingDown = false;
     const shutdown = async () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
       try { await docket.close(); } catch { /* ignore */ }
+      try { await daemon.close(); } catch { /* ignore */ }
+      process.exit(0);
     };
     process.on("SIGTERM", shutdown);
     process.on("SIGINT", shutdown);
