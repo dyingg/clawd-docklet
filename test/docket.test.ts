@@ -184,4 +184,131 @@ describe("Docket", () => {
     expect(typeof PLACEHOLDER_HTML).toBe("string");
     expect(PLACEHOLDER_HTML).toMatch(/<body/i);
   });
+
+  test("initial anchor top-left lands the HUD at left edge", async () => {
+    const { open, windows } = makeOpen((w) => {
+      if (windows.length === 1) fireReady(w, 1440, 900);
+    });
+    const docket = createDocket({ open, anchor: "top-left" });
+
+    await docket.show("<h1>hi</h1>");
+
+    expect(windows).toHaveLength(2);
+    expect(windows[1].openArgs.options).toMatchObject({
+      width: 480,
+      height: 400,
+      x: 20,
+      y: 900 - 400 - 20,
+    });
+  });
+
+  test("initial anchor bottom-right lands the HUD at bottom-right", async () => {
+    const { open, windows } = makeOpen((w) => {
+      if (windows.length === 1) fireReady(w, 1440, 900);
+    });
+    const docket = createDocket({ open, anchor: "bottom-right" });
+
+    await docket.show("<h1>hi</h1>");
+
+    expect(windows[1].openArgs.options).toMatchObject({
+      x: 1440 - 480 - 20,
+      y: 20,
+    });
+  });
+
+  test("initial anchor bottom-left lands the HUD at origin + margin", async () => {
+    const { open, windows } = makeOpen((w) => {
+      if (windows.length === 1) fireReady(w, 1440, 900);
+    });
+    const docket = createDocket({ open, anchor: "bottom-left" });
+
+    await docket.show("<h1>hi</h1>");
+
+    expect(windows[1].openArgs.options).toMatchObject({ x: 20, y: 20 });
+  });
+
+  test("follow-cursor sets followCursor and omits explicit x/y", async () => {
+    const { open, windows } = makeOpen((w) => {
+      if (windows.length === 1) fireReady(w, 1440, 900);
+    });
+    const docket = createDocket({ open, anchor: "follow-cursor" });
+
+    await docket.show("<h1>hi</h1>");
+
+    const opts = windows[1].openArgs.options;
+    expect(opts).toMatchObject({ followCursor: true, width: 480, height: 400 });
+    expect(opts).not.toHaveProperty("x");
+    expect(opts).not.toHaveProperty("y");
+  });
+
+  test("setAnchor to a new corner closes old window and reopens at new position with preserved HTML + title", async () => {
+    const { open, windows } = makeOpen((w) => {
+      if (windows.length === 1) fireReady(w, 1440, 900);
+    });
+    const docket = createDocket({ open });
+
+    await docket.show("<p>kept</p>", "My HUD");
+    await docket.setAnchor("bottom-left");
+
+    // windows[0] probe, windows[1] first HUD (closed), windows[2] reopened HUD.
+    expect(windows).toHaveLength(3);
+    expect(windows[1].close).toHaveBeenCalledTimes(1);
+    expect(windows[2].openArgs.html).toBe("<p>kept</p>");
+    expect(windows[2].openArgs.options).toMatchObject({
+      x: 20,
+      y: 20,
+      title: "My HUD",
+    });
+  });
+
+  test("setAnchor to the same anchor is a no-op (no close/reopen)", async () => {
+    const { open, windows } = makeOpen((w) => {
+      if (windows.length === 1) fireReady(w);
+    });
+    const docket = createDocket({ open });
+
+    await docket.show("<p>x</p>");
+    await docket.setAnchor("top-right");
+
+    expect(windows).toHaveLength(2);
+    expect(windows[1].close).not.toHaveBeenCalled();
+  });
+
+  test("setAnchor before any show just updates the default for the next open", async () => {
+    const { open, windows } = makeOpen((w) => {
+      if (windows.length === 1) fireReady(w, 1440, 900);
+    });
+    const docket = createDocket({ open });
+
+    await docket.setAnchor("bottom-right");
+    await docket.show("<p>first</p>");
+
+    expect(windows).toHaveLength(2);
+    expect(windows[1].openArgs.options).toMatchObject({
+      x: 1440 - 480 - 20,
+      y: 20,
+    });
+  });
+
+  test("setAnchor to follow-cursor reopens with followCursor true", async () => {
+    const { open, windows } = makeOpen((w) => {
+      if (windows.length === 1) fireReady(w);
+    });
+    const docket = createDocket({ open });
+
+    await docket.show("<p>x</p>");
+    await docket.setAnchor("follow-cursor");
+
+    expect(windows).toHaveLength(3);
+    const opts = windows[2].openArgs.options;
+    expect(opts).toMatchObject({ followCursor: true });
+    expect(opts).not.toHaveProperty("x");
+  });
+
+  test("setAnchor is a no-op when disabled", async () => {
+    const { open, windows } = makeOpen();
+    const docket = createDocket({ open, disabled: true });
+    await docket.setAnchor("bottom-left");
+    expect(windows).toHaveLength(0);
+  });
 });

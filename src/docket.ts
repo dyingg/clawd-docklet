@@ -1,3 +1,5 @@
+import type { Anchor } from "./config.js";
+
 export type HudMode = "always" | "lazy";
 
 /** Subset of glimpseui's GlimpseWindow that Docket touches. */
@@ -8,7 +10,10 @@ export type GWindow = {
   once: (event: string, listener: (...args: unknown[]) => void) => unknown;
 };
 
-export type GlimpseOpen = (html: string, options: Record<string, unknown>) => GWindow;
+export type GlimpseOpen = (
+  html: string,
+  options: Record<string, unknown>
+) => GWindow;
 
 export interface DocketOptions {
   /** Injected glimpseui.open (for tests). Defaults to the real module loaded lazily. */
@@ -17,12 +22,15 @@ export interface DocketOptions {
   disabled?: boolean;
   /** Max time to wait for the probe window's `ready` event. */
   probeTimeoutMs?: number;
+  /** Initial anchor; defaults to "top-right". */
+  anchor?: Anchor;
 }
 
 export interface Docket {
   show(html: string, title?: string): Promise<void>;
   hide(): Promise<void>;
   close(): Promise<void>;
+  setAnchor(anchor: Anchor): Promise<void>;
 }
 
 type ScreenDims = { width: number; height: number };
@@ -31,6 +39,32 @@ const HUD_WIDTH = 480;
 const HUD_HEIGHT = 400;
 const MARGIN = 20;
 const DEFAULT_PROBE_TIMEOUT_MS = 3000;
+
+/**
+ * Options to merge into the glimpse `open()` call to realise an anchor.
+ * Corner anchors emit explicit `x,y` in AppKit coordinates (bottom-left origin);
+ * `follow-cursor` omits x/y and lets glimpse track the pointer.
+ */
+export function positionFor(
+  anchor: Anchor,
+  d: ScreenDims
+): Record<string, unknown> {
+  switch (anchor) {
+    case "top-right":
+      return {
+        x: d.width - HUD_WIDTH - MARGIN,
+        y: d.height - HUD_HEIGHT - MARGIN,
+      };
+    case "top-left":
+      return { x: MARGIN, y: d.height - HUD_HEIGHT - MARGIN };
+    case "bottom-right":
+      return { x: d.width - HUD_WIDTH - MARGIN, y: MARGIN };
+    case "bottom-left":
+      return { x: MARGIN, y: MARGIN };
+    case "follow-cursor":
+      return { followCursor: true };
+  }
+}
 
 export const PLACEHOLDER_HTML = `<!doctype html>
 <meta name="color-scheme" content="light dark">
@@ -94,17 +128,33 @@ export function createDocket(opts: DocketOptions = {}): Docket {
           noDock: true,
         });
         const timer = setTimeout(() => {
-          try { probeWin.close(); } catch { /* ignore */ }
-          reject(new Error(`docket: probe timed out after ${probeTimeoutMs}ms`));
+          try {
+            probeWin.close();
+          } catch {
+            /* ignore */
+          }
+          reject(
+            new Error(`docket: probe timed out after ${probeTimeoutMs}ms`)
+          );
         }, probeTimeoutMs);
         probeWin.once("ready", (...args: unknown[]) => {
           clearTimeout(timer);
-          const info = args[0] as { screen?: { visibleWidth?: number; visibleHeight?: number } } | undefined;
+          const info = args[0] as
+            | { screen?: { visibleWidth?: number; visibleHeight?: number } }
+            | undefined;
           const width = info?.screen?.visibleWidth ?? 0;
           const height = info?.screen?.visibleHeight ?? 0;
-          try { probeWin.close(); } catch { /* ignore */ }
+          try {
+            probeWin.close();
+          } catch {
+            /* ignore */
+          }
           if (!width || !height) {
-            reject(new Error(`docket: probe returned invalid dims (${width}×${height})`));
+            reject(
+              new Error(
+                `docket: probe returned invalid dims (${width}×${height})`
+              )
+            );
             return;
           }
           dims = { width, height };
@@ -112,7 +162,11 @@ export function createDocket(opts: DocketOptions = {}): Docket {
         });
         probeWin.once("error", (...args: unknown[]) => {
           clearTimeout(timer);
-          try { probeWin.close(); } catch { /* ignore */ }
+          try {
+            probeWin.close();
+          } catch {
+            /* ignore */
+          }
           const err = args[0];
           reject(err instanceof Error ? err : new Error(String(err)));
         });
@@ -120,10 +174,10 @@ export function createDocket(opts: DocketOptions = {}): Docket {
       if (openFn) {
         startProbe(openFn);
       } else {
-        loadGlimpseOpen().then(
-          (fn) => { openFn = fn; startProbe(fn); },
-          reject,
-        );
+        loadGlimpseOpen().then((fn) => {
+          openFn = fn;
+          startProbe(fn);
+        }, reject);
       }
     }).finally(() => {
       probeInFlight = null;
@@ -131,17 +185,22 @@ export function createDocket(opts: DocketOptions = {}): Docket {
     return probeInFlight;
   }
 
-  function openReal(open: GlimpseOpen, html: string, d: ScreenDims, title?: string): GWindow {
+  function openReal(
+    open: GlimpseOpen,
+    html: string,
+    d: ScreenDims,
+    anchor: Anchor,
+    title?: string
+  ): GWindow {
     const options: Record<string, unknown> = {
       width: HUD_WIDTH,
       height: HUD_HEIGHT,
-      x: d.width - HUD_WIDTH - MARGIN,
-      y: d.height - HUD_HEIGHT - MARGIN,
       frameless: true,
       transparent: true,
       clickThrough: true,
       floating: true,
       noDock: true,
+      ...positionFor(anchor, d),
     };
     if (title !== undefined) options.title = title;
     const w = open(html, options);
@@ -151,9 +210,15 @@ export function createDocket(opts: DocketOptions = {}): Docket {
     return w;
   }
 
+  let currentAnchor: Anchor = opts.anchor ?? "top-right";
+  let lastHtml = "";
+  let lastTitle: string | undefined;
+
   return {
     async show(html: string, title?: string): Promise<void> {
       if (disabled) return;
+      lastHtml = html;
+      lastTitle = title;
       if (win) {
         win.setHTML(html);
         return;
@@ -166,25 +231,54 @@ export function createDocket(opts: DocketOptions = {}): Docket {
       }
       // probe() ensures openFn is cached; use it synchronously so concurrent
       // post-probe resumes don't both open a real window.
-      const open = openFn ?? await getOpen();
+      const open = openFn ?? (await getOpen());
       if (win) {
         (win as GWindow).setHTML(html);
         return;
       }
-      win = openReal(open, html, d, title);
+      win = openReal(open, html, d, currentAnchor, title);
     },
     async hide(): Promise<void> {
       if (disabled) return;
       if (!win) return;
-      try { win.close(); } catch { /* ignore */ }
+      try {
+        win.close();
+      } catch {
+        /* ignore */
+      }
       win = null;
     },
     async close(): Promise<void> {
       if (disabled) return;
       if (win) {
-        try { win.close(); } catch { /* ignore */ }
+        try {
+          win.close();
+        } catch {
+          /* ignore */
+        }
         win = null;
       }
+    },
+    async setAnchor(anchor: Anchor): Promise<void> {
+      if (disabled) return;
+      if (currentAnchor === anchor) return;
+      currentAnchor = anchor;
+      if (!win) return;
+      // Close-and-reopen at the new position with the last rendered HTML.
+      // glimpseui has no runtime "move" RPC and mixing its live
+      // followCursor toggle with x/y repositioning adds states without a
+      // clear user win.
+      const html = lastHtml;
+      const title = lastTitle;
+      try {
+        win.close();
+      } catch {
+        /* ignore */
+      }
+      win = null;
+      const d = await probe();
+      const open = openFn ?? (await getOpen());
+      if (!win) win = openReal(open, html, d, currentAnchor, title);
     },
   };
 }

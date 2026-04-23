@@ -9,6 +9,8 @@ export type Paths = {
   idleMs: number;
   hudMode: HudMode;
   docketDisabled: boolean;
+  configPath: string;
+  statusDisabled: boolean;
 };
 
 function defaultSocketDir(): string {
@@ -32,6 +34,10 @@ function defaultPidfilePath(): string {
   return join(defaultSocketDir(), "daemon.pid");
 }
 
+function defaultConfigPath(): string {
+  return join(defaultSocketDir(), "config.json");
+}
+
 function parseHudMode(raw: string | undefined): HudMode {
   if (raw === "lazy") return "lazy";
   return "always";
@@ -48,5 +54,7 @@ export function resolvePaths(): Paths {
     idleMs: Number.parseInt(process.env.CLAWD_DOCKLET_IDLE_MS ?? "30000", 10),
     hudMode: parseHudMode(process.env.CLAWD_DOCKLET_HUD_MODE),
     docketDisabled: parseBoolFlag(process.env.CLAWD_DOCKLET_DOCKET_DISABLED),
+    configPath: process.env.CLAWD_DOCKLET_CONFIG ?? defaultConfigPath(),
+    statusDisabled: parseBoolFlag(process.env.CLAWD_DOCKLET_STATUS_DISABLED),
   };
 }
