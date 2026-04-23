@@ -227,6 +227,29 @@ describe("Docket", () => {
     expect(windows[1].openArgs.options).toMatchObject({ x: 20, y: 20 });
   });
 
+  test("top anchors honor visibleY (dock at bottom) — HUD sits flush under the menu bar", async () => {
+    // Simulate a 1440×900 visible area offset by a 90px dock at the bottom.
+    // Without visibleY support the HUD would land 90px below the menu bar.
+    const { open, windows } = makeOpen((w) => {
+      if (windows.length === 1) {
+        w.emit("ready", {
+          screen: {
+            visibleWidth: 1440,
+            visibleHeight: 900,
+            visibleX: 0,
+            visibleY: 90,
+          },
+        });
+      }
+    });
+    const docket = createDocket({ open, anchor: "top-right" });
+    await docket.show("<h1>hi</h1>");
+    expect(windows[1].openArgs.options).toMatchObject({
+      x: 0 + 1440 - 480 - 20,
+      y: 90 + 900 - 400 - 20,
+    });
+  });
+
   test("follow-cursor sets followCursor and omits explicit x/y", async () => {
     const { open, windows } = makeOpen((w) => {
       if (windows.length === 1) fireReady(w, 1440, 900);

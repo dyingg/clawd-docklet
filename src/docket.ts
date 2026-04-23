@@ -33,7 +33,12 @@ export interface Docket {
   setAnchor(anchor: Anchor): Promise<void>;
 }
 
-type ScreenDims = { width: number; height: number };
+type ScreenDims = {
+  width: number;
+  height: number;
+  visibleX: number;
+  visibleY: number;
+};
 
 const HUD_WIDTH = 480;
 const HUD_HEIGHT = 400;
@@ -42,25 +47,29 @@ const DEFAULT_PROBE_TIMEOUT_MS = 3000;
 
 /**
  * Options to merge into the glimpse `open()` call to realise an anchor.
- * Corner anchors emit explicit `x,y` in AppKit coordinates (bottom-left origin);
+ * Corner anchors emit explicit `x,y` in AppKit coordinates (bottom-left origin).
+ * We honor `visibleX/visibleY` so the menu bar (top) and dock (bottom) don't
+ * push the HUD away from the corner the user picked — AppKit's visibleFrame
+ * excludes both, and ignoring its origin leaves a dock-sized gap at the top.
  * `follow-cursor` omits x/y and lets glimpse track the pointer.
  */
 export function positionFor(
   anchor: Anchor,
   d: ScreenDims
 ): Record<string, unknown> {
+  const right = d.visibleX + d.width - HUD_WIDTH - MARGIN;
+  const top = d.visibleY + d.height - HUD_HEIGHT - MARGIN;
+  const left = d.visibleX + MARGIN;
+  const bottom = d.visibleY + MARGIN;
   switch (anchor) {
     case "top-right":
-      return {
-        x: d.width - HUD_WIDTH - MARGIN,
-        y: d.height - HUD_HEIGHT - MARGIN,
-      };
+      return { x: right, y: top };
     case "top-left":
-      return { x: MARGIN, y: d.height - HUD_HEIGHT - MARGIN };
+      return { x: left, y: top };
     case "bottom-right":
-      return { x: d.width - HUD_WIDTH - MARGIN, y: MARGIN };
+      return { x: right, y: bottom };
     case "bottom-left":
-      return { x: MARGIN, y: MARGIN };
+      return { x: left, y: bottom };
     case "follow-cursor":
       return { followCursor: true };
   }
@@ -140,10 +149,19 @@ export function createDocket(opts: DocketOptions = {}): Docket {
         probeWin.once("ready", (...args: unknown[]) => {
           clearTimeout(timer);
           const info = args[0] as
-            | { screen?: { visibleWidth?: number; visibleHeight?: number } }
+            | {
+                screen?: {
+                  visibleWidth?: number;
+                  visibleHeight?: number;
+                  visibleX?: number;
+                  visibleY?: number;
+                };
+              }
             | undefined;
           const width = info?.screen?.visibleWidth ?? 0;
           const height = info?.screen?.visibleHeight ?? 0;
+          const visibleX = info?.screen?.visibleX ?? 0;
+          const visibleY = info?.screen?.visibleY ?? 0;
           try {
             probeWin.close();
           } catch {
@@ -157,7 +175,7 @@ export function createDocket(opts: DocketOptions = {}): Docket {
             );
             return;
           }
-          dims = { width, height };
+          dims = { width, height, visibleX, visibleY };
           resolve(dims);
         });
         probeWin.once("error", (...args: unknown[]) => {
