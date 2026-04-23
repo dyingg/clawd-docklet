@@ -13,7 +13,6 @@ export type GlimpseOpen = (html: string, options: Record<string, unknown>) => GW
 export interface DocketOptions {
   /** Injected glimpseui.open (for tests). Defaults to the real module loaded lazily. */
   open?: GlimpseOpen;
-  hudMode?: HudMode;
   /** When true, show/hide/close are no-ops. Used by tests and CI. */
   disabled?: boolean;
   /** Max time to wait for the probe window's `ready` event. */
@@ -131,8 +130,8 @@ export function createDocket(opts: DocketOptions = {}): Docket {
     return probeInFlight;
   }
 
-  function openReal(open: GlimpseOpen, html: string, d: ScreenDims): GWindow {
-    const w = open(html, {
+  function openReal(open: GlimpseOpen, html: string, d: ScreenDims, title?: string): GWindow {
+    const options: Record<string, unknown> = {
       width: HUD_WIDTH,
       height: HUD_HEIGHT,
       x: d.width - HUD_WIDTH - MARGIN,
@@ -142,7 +141,9 @@ export function createDocket(opts: DocketOptions = {}): Docket {
       clickThrough: true,
       floating: true,
       noDock: true,
-    });
+    };
+    if (title !== undefined) options.title = title;
+    const w = open(html, options);
     w.once("closed", () => {
       if (win === w) win = null;
     });
@@ -150,7 +151,7 @@ export function createDocket(opts: DocketOptions = {}): Docket {
   }
 
   return {
-    async show(html: string): Promise<void> {
+    async show(html: string, title?: string): Promise<void> {
       if (disabled) return;
       if (win) {
         win.setHTML(html);
@@ -169,7 +170,7 @@ export function createDocket(opts: DocketOptions = {}): Docket {
         (win as GWindow).setHTML(html);
         return;
       }
-      win = openReal(open, html, d);
+      win = openReal(open, html, d, title);
     },
     async hide(): Promise<void> {
       if (disabled) return;

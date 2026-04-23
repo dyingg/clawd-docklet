@@ -75,6 +75,30 @@ describe("Docket", () => {
     });
   });
 
+  test("title is forwarded to the real HUD's open options when provided", async () => {
+    const { open, windows } = makeOpen((w) => {
+      if (windows.length === 1) fireReady(w, 1440, 900);
+    });
+    const docket = createDocket({ open });
+
+    await docket.show("<h1>hi</h1>", "My HUD");
+
+    expect(windows).toHaveLength(2);
+    expect(windows[1].openArgs.options.title).toBe("My HUD");
+  });
+
+  test("title is omitted from open options when not provided", async () => {
+    const { open, windows } = makeOpen((w) => {
+      if (windows.length === 1) fireReady(w);
+    });
+    const docket = createDocket({ open });
+
+    await docket.show("<h1>hi</h1>");
+
+    expect(windows).toHaveLength(2);
+    expect(windows[1].openArgs.options).not.toHaveProperty("title");
+  });
+
   test("second show updates existing window via setHTML (no reopen)", async () => {
     const { open, windows } = makeOpen((w) => {
       if (windows.length === 1) fireReady(w);
