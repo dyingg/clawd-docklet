@@ -18,7 +18,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "npm run build",
-    "prepublishOnly": "npm run build && npm test"
+    "postinstall": "patch-package",
+    "prepublishOnly": "npm run build && npm test",
+    "daemon": "npm run build && CLAWD_DOCKLET_ROLE=daemon CLAWD_DOCKLET_IDLE_MS=0 node ./dist/index.js",
+    "smoke": "npm run build && node ./examples/mcp-smoke.mjs",
+    "daemon:stop": "node -e \"const{homedir}=require('os');const{join}=require('path');const{readFileSync,unlinkSync,existsSync}=require('fs');const d=join(homedir(),'Library','Application Support','clawd-docklet');const pidf=join(d,'daemon.pid');if(existsSync(pidf)){try{process.kill(Number(readFileSync(pidf,'utf8')),'SIGTERM')}catch{}}['daemon.sock','daemon.pid'].forEach(n=>{try{unlinkSync(join(d,n))}catch{}});\""
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -27,6 +31,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "patch-package": "^8.0.1",
     "typescript": "^5.6.0",
     "vitest": "^3.0.0"
   }
