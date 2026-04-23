@@ -38,13 +38,14 @@ export const PLACEHOLDER_HTML = `<!doctype html>
   <div style="position:fixed;top:20px;right:20px;
               display:flex;align-items:center;gap:8px;
               padding:8px 14px;border-radius:999px;
-              background:color-mix(in srgb, canvas 70%, transparent);
-              backdrop-filter:blur(24px) saturate(180%);
+              background:rgba(30,30,40,0.85);
               -webkit-backdrop-filter:blur(24px) saturate(180%);
-              border:1px solid color-mix(in srgb, canvastext 10%, transparent);
-              font-size:12px;color:canvastext;">
+              backdrop-filter:blur(24px) saturate(180%);
+              border:1px solid rgba(255,255,255,0.12);
+              box-shadow:0 4px 20px rgba(0,0,0,0.25);
+              font-size:12px;color:#fff;">
     <span style="width:8px;height:8px;border-radius:50%;background:#34c759;
-                 box-shadow:0 0 6px rgba(52,199,89,.6)"></span>
+                 box-shadow:0 0 6px rgba(52,199,89,0.6)"></span>
     clawd-docklet
   </div>
 </body>`;
