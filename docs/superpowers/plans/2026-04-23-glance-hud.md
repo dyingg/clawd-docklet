@@ -1,29 +1,31 @@
-# Docket HUD Implementation Plan
+# Glance HUD Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Wire a daemon-owned glimpseui HUD window into the existing adapter/daemon shell, with `set_docket` / `hide_docket` MCP tools and screen-probe-based top-right positioning.
+**Renamed from:** 2026-04-23-docket-hud.md (docklet-6ye, 2026-04-23)
 
-**Architecture:** Add `src/docket.ts` as a pure HUD module (glimpseui factory injectable for tests). `src/daemon.ts` instantiates one `Docket` and registers `show`/`hide` RPC handlers that drive it. `src/adapter.ts` exposes two MCP tools that forward to those RPCs. Lifecycle is controlled by `CLAWD_DOCKLET_HUD_MODE` (`always`|`lazy`); tests disable real window spawning with `CLAWD_DOCKLET_DOCKET_DISABLED=1`.
+**Goal:** Wire a daemon-owned glimpseui HUD window into the existing adapter/daemon shell, with `set_glance` / `hide_glance` MCP tools and screen-probe-based top-right positioning.
+
+**Architecture:** Add `src/glance.ts` as a pure HUD module (glimpseui factory injectable for tests). `src/daemon.ts` instantiates one `Glance` and registers `show`/`hide` RPC handlers that drive it. `src/adapter.ts` exposes two MCP tools that forward to those RPCs. Lifecycle is controlled by `AGENT_GLANCE_HUD_MODE` (`always`|`lazy`); tests disable real window spawning with `AGENT_GLANCE_HUD_DISABLED=1`.
 
 **Tech Stack:** TypeScript (ESM/NodeNext), `@modelcontextprotocol/sdk@1.29.0` (`McpServer` + `registerTool`), `glimpseui@0.8.0` (`open()` returning `GlimpseWindow` EventEmitter), `vitest`, `zod`.
 
-**Spec:** [`docs/superpowers/specs/2026-04-23-docket-hud-design.md`](../specs/2026-04-23-docket-hud-design.md)
+**Spec:** [`docs/superpowers/specs/2026-04-23-glance-hud-design.md`](../specs/2026-04-23-glance-hud-design.md)
 **Beads issue:** `docklet-878`
-**Predecessor (shipped):** `docklet-xbv` — commit `dc95eab` landed `docket_show` tool + daemon payload ack; this plan completes the glimpse wiring.
+**Predecessor (shipped):** `docklet-xbv` — commit `dc95eab` landed an initial precursor HUD tool + daemon payload ack; this plan completes the glimpse wiring.
 
 ---
 
 ## Pre-flight: read these before starting
 
-1. **Spec**: `docs/superpowers/specs/2026-04-23-docket-hud-design.md` — sections 4–12 are the contract for this work.
+1. **Spec**: `docs/superpowers/specs/2026-04-23-glance-hud-design.md` — sections 4–12 are the contract for this work.
 2. **Current code**:
-   - `src/adapter.ts:95-112` — existing `registerDocketShow` (will be renamed).
-   - `src/daemon.ts:114-128` — existing `registerShowHandler` (will be renamed and now drives Docket).
-   - `src/daemon.ts:130-144` — `runDaemonMain` (drops `ping` stub, adds Docket instantiation).
+   - `src/adapter.ts:95-112` — existing precursor registrar (will be renamed to `registerGlanceTools`).
+   - `src/daemon.ts:114-128` — existing `registerShowHandler` (will be renamed and now drives Glance).
+   - `src/daemon.ts:130-144` — `runDaemonMain` (drops `ping` stub, adds Glance instantiation).
    - `src/paths.ts` — env-var knob layout.
    - `test/adapter-daemon.test.ts:54-81` — `show handler` block (gets replaced and extended).
-   - `test/e2e.test.ts:29-71` — `docket_show` MCP surface tests (renamed + extended).
+   - `test/e2e.test.ts:29-71` — precursor HUD-tool MCP surface tests (renamed + extended).
 3. **Glimpseui subtlety**: In `node_modules/glimpseui/src/glimpse.mjs:94-105`, when `open(html, ...)` is called with a non-empty `initialHTML`, the `'ready'` event is **not** emitted (the handler calls `setHTML` instead and returns). Therefore the **probe window must be opened with `open('', {...})`** so we get the `ready` event carrying `info.screen.visibleWidth`/`visibleHeight`. The real HUD window can be opened with `open(html, {...})` (no ready needed — we already cached the dims from the probe).
 4. **MCP SDK**: We use `McpServer.registerTool(name, config, handler)` (see `CLAUDE.md` → "Verify Library APIs Before Using Them"). Do NOT use the deprecated `server.tool(...)` overloads.
 
@@ -39,23 +41,23 @@
 
 ```
 src/
-├── docket.ts         (NEW) — createDocket(), Docket interface, PLACEHOLDER_HTML.
+├── glance.ts         (NEW) — createGlance(), Glance interface, PLACEHOLDER_HTML.
 │                              Imports glimpseui; adapter.ts never imports glimpseui.
-├── paths.ts          (MOD) — add hudMode + docketDisabled to Paths + resolvePaths().
-├── daemon.ts         (MOD) — registerDocketHandlers(daemon, docket) replaces
-│                              registerShowHandler; runDaemonMain wires Docket;
+├── paths.ts          (MOD) — add hudMode + hudDisabled to Paths + resolvePaths().
+├── daemon.ts         (MOD) — registerGlanceHandlers(daemon, glance) replaces
+│                              registerShowHandler; runDaemonMain wires Glance;
 │                              drop `ping` stub.
-├── adapter.ts        (MOD) — registerDocketTools(mcp, daemon): set_docket + hide_docket.
+├── adapter.ts        (MOD) — registerGlanceTools(mcp, daemon): set_glance + hide_glance.
 ├── index.ts          (unchanged)
 └── protocol.ts       (unchanged)
 
 test/
-├── docket.test.ts             (NEW) — unit test with a fake glimpseui open().
-├── adapter-daemon.test.ts     (MOD) — uses registerDocketHandlers w/ disabled Docket;
+├── glance.test.ts             (NEW) — unit test with a fake glimpseui open().
+├── adapter-daemon.test.ts     (MOD) — uses registerGlanceHandlers w/ disabled Glance;
 │                                       adds hide-handler block.
-├── e2e.test.ts                (MOD) — rename docket_show → set_docket; add
-│                                       hide_docket test; env sets
-│                                       CLAWD_DOCKLET_DOCKET_DISABLED=1.
+├── e2e.test.ts                (MOD) — assert on set_glance tool; add
+│                                       hide_glance test; env sets
+│                                       AGENT_GLANCE_HUD_DISABLED=1.
 └── helpers/                   (unchanged)
 ```
 
@@ -86,7 +88,7 @@ Expected: all tests pass (protocol + adapter-daemon + e2e). If any fail on a cle
 
 ---
 
-## Task 1: Extend `Paths` with `hudMode` and `docketDisabled`
+## Task 1: Extend `Paths` with `hudMode` and `hudDisabled`
 
 **Files:**
 - Modify: `src/paths.ts`
@@ -107,22 +109,22 @@ export type Paths = {
   pidfilePath: string;
   idleMs: number;
   hudMode: HudMode;
-  docketDisabled: boolean;
+  hudDisabled: boolean;
 };
 
 function defaultSocketDir(): string {
   const plat = platform();
   if (plat === "darwin") {
-    return join(homedir(), "Library", "Application Support", "clawd-docklet");
+    return join(homedir(), "Library", "Application Support", "agent-glance");
   }
   if (plat === "win32") {
-    return process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local", "clawd-docklet");
+    return process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local", "agent-glance");
   }
-  return process.env.XDG_RUNTIME_DIR ?? join(homedir(), ".clawd-docklet");
+  return process.env.XDG_RUNTIME_DIR ?? join(homedir(), ".agent-glance");
 }
 
 function defaultSocketPath(): string {
-  if (platform() === "win32") return String.raw`\\.\pipe\clawd-docklet`;
+  if (platform() === "win32") return String.raw`\\.\pipe\agent-glance`;
   return join(defaultSocketDir(), "daemon.sock");
 }
 
@@ -141,11 +143,11 @@ function parseBoolFlag(raw: string | undefined): boolean {
 
 export function resolvePaths(): Paths {
   return {
-    socketPath: process.env.CLAWD_DOCKLET_SOCKET ?? defaultSocketPath(),
-    pidfilePath: process.env.CLAWD_DOCKLET_PIDFILE ?? defaultPidfilePath(),
-    idleMs: Number.parseInt(process.env.CLAWD_DOCKLET_IDLE_MS ?? "30000", 10),
-    hudMode: parseHudMode(process.env.CLAWD_DOCKLET_HUD_MODE),
-    docketDisabled: parseBoolFlag(process.env.CLAWD_DOCKLET_DOCKET_DISABLED),
+    socketPath: process.env.AGENT_GLANCE_SOCKET ?? defaultSocketPath(),
+    pidfilePath: process.env.AGENT_GLANCE_PIDFILE ?? defaultPidfilePath(),
+    idleMs: Number.parseInt(process.env.AGENT_GLANCE_IDLE_MS ?? "30000", 10),
+    hudMode: parseHudMode(process.env.AGENT_GLANCE_HUD_MODE),
+    hudDisabled: parseBoolFlag(process.env.AGENT_GLANCE_HUD_DISABLED),
   };
 }
 ```
@@ -156,13 +158,13 @@ The existing `beforeEach` constructs two `Paths` objects (startDaemon and connec
 
 ```ts
 daemon = await startDaemon({
-  socketPath: env.CLAWD_DOCKLET_SOCKET,
-  pidfilePath: env.CLAWD_DOCKLET_PIDFILE,
+  socketPath: env.AGENT_GLANCE_SOCKET,
+  pidfilePath: env.AGENT_GLANCE_PIDFILE,
   idleMs: 60000,
 });
 const sock = await connectDaemon({
-  socketPath: env.CLAWD_DOCKLET_SOCKET,
-  pidfilePath: env.CLAWD_DOCKLET_PIDFILE,
+  socketPath: env.AGENT_GLANCE_SOCKET,
+  pidfilePath: env.AGENT_GLANCE_PIDFILE,
   idleMs: 60000,
 });
 ```
@@ -171,18 +173,18 @@ to:
 
 ```ts
 daemon = await startDaemon({
-  socketPath: env.CLAWD_DOCKLET_SOCKET,
-  pidfilePath: env.CLAWD_DOCKLET_PIDFILE,
+  socketPath: env.AGENT_GLANCE_SOCKET,
+  pidfilePath: env.AGENT_GLANCE_PIDFILE,
   idleMs: 60000,
   hudMode: "always",
-  docketDisabled: true,
+  hudDisabled: true,
 });
 const sock = await connectDaemon({
-  socketPath: env.CLAWD_DOCKLET_SOCKET,
-  pidfilePath: env.CLAWD_DOCKLET_PIDFILE,
+  socketPath: env.AGENT_GLANCE_SOCKET,
+  pidfilePath: env.AGENT_GLANCE_PIDFILE,
   idleMs: 60000,
   hudMode: "always",
-  docketDisabled: true,
+  hudDisabled: true,
 });
 ```
 
@@ -198,26 +200,26 @@ Expected: typecheck passes, existing tests still pass (the new fields are inert 
 - [ ] **Step 4: Commit**
 
 ```bash
-git commit -m "feat(paths): add hudMode and docketDisabled knobs" -- src/paths.ts test/adapter-daemon.test.ts
+git commit -m "feat(paths): add hudMode and hudDisabled knobs" -- src/paths.ts test/adapter-daemon.test.ts
 ```
 
 ---
 
-## Task 2: Write failing unit tests for `src/docket.ts`
+## Task 2: Write failing unit tests for `src/glance.ts`
 
 **Files:**
-- Test (create): `test/docket.test.ts`
+- Test (create): `test/glance.test.ts`
 
 - [ ] **Step 1: Create the failing test file**
 
-Create `test/docket.test.ts` with the following full contents:
+Create `test/glance.test.ts` with the following full contents:
 
 ```ts
 import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { createDocket, PLACEHOLDER_HTML, type DocketOptions } from "../src/docket.js";
+import { createGlance, PLACEHOLDER_HTML, type GlanceOptions } from "../src/glance.js";
 
-/** Minimal fake that mirrors the subset of GlimpseWindow the Docket uses. */
+/** Minimal fake that mirrors the subset of GlimpseWindow the Glance uses. */
 class FakeWindow extends EventEmitter {
   setHTML = vi.fn<(html: string) => void>();
   close = vi.fn<() => void>();
@@ -227,7 +229,7 @@ class FakeWindow extends EventEmitter {
   }
 }
 
-type OpenFn = NonNullable<DocketOptions["open"]>;
+type OpenFn = NonNullable<GlanceOptions["open"]>;
 
 function makeOpen(onOpen?: (w: FakeWindow) => void) {
   const windows: FakeWindow[] = [];
@@ -250,16 +252,16 @@ function fireReady(w: FakeWindow, width = 1440, height = 900) {
   });
 }
 
-describe("Docket", () => {
+describe("Glance", () => {
   afterEach(() => vi.restoreAllMocks());
 
   test("first show: probe → close probe → open real HUD at top-right", async () => {
     const { open, windows } = makeOpen((w) => {
       if (windows.length === 1) fireReady(w, 1440, 900);
     });
-    const docket = createDocket({ open });
+    const glance = createGlance({ open });
 
-    await docket.show("<h1>hi</h1>");
+    await glance.show("<h1>hi</h1>");
 
     expect(windows).toHaveLength(2);
 
@@ -294,10 +296,10 @@ describe("Docket", () => {
     const { open, windows } = makeOpen((w) => {
       if (windows.length === 1) fireReady(w);
     });
-    const docket = createDocket({ open });
+    const glance = createGlance({ open });
 
-    await docket.show("<p>one</p>");
-    await docket.show("<p>two</p>");
+    await glance.show("<p>one</p>");
+    await glance.show("<p>two</p>");
 
     expect(windows).toHaveLength(2); // probe + real, no third
     expect(windows[1].setHTML).toHaveBeenCalledWith("<p>two</p>");
@@ -307,13 +309,13 @@ describe("Docket", () => {
     const { open, windows } = makeOpen((w) => {
       if (windows.length === 1) fireReady(w, 2000, 1200);
     });
-    const docket = createDocket({ open });
+    const glance = createGlance({ open });
 
-    await docket.show("<p>first</p>");
-    await docket.hide();
+    await glance.show("<p>first</p>");
+    await glance.hide();
     expect(windows[1].close).toHaveBeenCalledTimes(1);
 
-    await docket.show("<p>second</p>");
+    await glance.show("<p>second</p>");
 
     // windows[0] = probe, windows[1] = first real HUD (now closed),
     // windows[2] = reopened HUD — no second probe.
@@ -330,9 +332,9 @@ describe("Docket", () => {
     const { open, windows } = makeOpen((w) => {
       if (windows.length === 1) setTimeout(() => fireReady(w), 5);
     });
-    const docket = createDocket({ open });
+    const glance = createGlance({ open });
 
-    await Promise.all([docket.show("<p>a</p>"), docket.show("<p>b</p>")]);
+    await Promise.all([glance.show("<p>a</p>"), glance.show("<p>b</p>")]);
 
     // One probe + one real HUD. The loser's HTML should be the final setHTML
     // (we allow either order, but there must be exactly two windows).
@@ -342,9 +344,9 @@ describe("Docket", () => {
   test("probe timeout rejects show with an actionable error", async () => {
     vi.useFakeTimers();
     const { open } = makeOpen(); // never fires ready
-    const docket = createDocket({ open, probeTimeoutMs: 500 });
+    const glance = createGlance({ open, probeTimeoutMs: 500 });
 
-    const p = docket.show("<p>x</p>");
+    const p = glance.show("<p>x</p>");
     vi.advanceTimersByTime(600);
     await expect(p).rejects.toThrow(/probe.*timed out/i);
     vi.useRealTimers();
@@ -352,11 +354,11 @@ describe("Docket", () => {
 
   test("disabled: show/hide/close are no-ops and never call open()", async () => {
     const { open, windows } = makeOpen();
-    const docket = createDocket({ open, disabled: true });
+    const glance = createGlance({ open, disabled: true });
 
-    await docket.show("<p>x</p>");
-    await docket.hide();
-    await docket.close();
+    await glance.show("<p>x</p>");
+    await glance.hide();
+    await glance.close();
 
     expect(windows).toHaveLength(0);
   });
@@ -371,34 +373,34 @@ describe("Docket", () => {
 - [ ] **Step 2: Run the test and confirm it fails for the right reason**
 
 ```bash
-npx vitest run test/docket.test.ts
+npx vitest run test/glance.test.ts
 ```
 
-Expected: failure on `Cannot find module '../src/docket.js'` (module does not exist yet). This confirms we're about to create real behavior, not re-exercise an existing module.
+Expected: failure on `Cannot find module '../src/glance.js'` (module does not exist yet). This confirms we're about to create real behavior, not re-exercise an existing module.
 
 - [ ] **Step 3: Commit the failing test**
 
 ```bash
-git commit -m "test(docket): failing unit tests for Docket module" -- test/docket.test.ts
+git commit -m "test(glance): failing unit tests for Glance module" -- test/glance.test.ts
 ```
 
 ---
 
-## Task 3: Implement `src/docket.ts`
+## Task 3: Implement `src/glance.ts`
 
 **Files:**
-- Create: `src/docket.ts`
+- Create: `src/glance.ts`
 
-- [ ] **Step 1: Write `src/docket.ts` with the minimum behavior to pass the tests**
+- [ ] **Step 1: Write `src/glance.ts` with the minimum behavior to pass the tests**
 
-Create `src/docket.ts` with:
+Create `src/glance.ts` with:
 
 Note: `glimpseui` ships as `.mjs` with no `.d.ts`. Under `strict` + NodeNext, importing it directly will fail to typecheck. We model the subset we use as a structural type (`GlimpseOpen` / `GWindow`) and load the real module via a lazy dynamic `import()` wrapped in `@ts-expect-error`. This keeps `src/` typecheck-clean while letting the daemon actually spawn windows at runtime.
 
 ```ts
 export type HudMode = "always" | "lazy";
 
-/** Subset of glimpseui's GlimpseWindow that Docket touches. */
+/** Subset of glimpseui's GlimpseWindow that Glance touches. */
 export type GWindow = {
   setHTML: (html: string) => void;
   close: () => void;
@@ -408,7 +410,7 @@ export type GWindow = {
 
 export type GlimpseOpen = (html: string, options: Record<string, unknown>) => GWindow;
 
-export interface DocketOptions {
+export interface GlanceOptions {
   /** Injected glimpseui.open (for tests). Defaults to the real module loaded lazily. */
   open?: GlimpseOpen;
   hudMode?: HudMode;
@@ -418,7 +420,7 @@ export interface DocketOptions {
   probeTimeoutMs?: number;
 }
 
-export interface Docket {
+export interface Glance {
   show(html: string, title?: string): Promise<void>;
   hide(): Promise<void>;
   close(): Promise<void>;
@@ -444,7 +446,7 @@ export const PLACEHOLDER_HTML = `<!doctype html>
               font-size:12px;color:canvastext;">
     <span style="width:8px;height:8px;border-radius:50%;background:#34c759;
                  box-shadow:0 0 6px rgba(52,199,89,.6)"></span>
-    clawd-docklet
+    agent-glance
   </div>
 </body>`;
 
@@ -455,7 +457,7 @@ async function loadGlimpseOpen(): Promise<GlimpseOpen> {
   return mod.open;
 }
 
-export function createDocket(opts: DocketOptions = {}): Docket {
+export function createGlance(opts: GlanceOptions = {}): Glance {
   const disabled = opts.disabled === true;
   const probeTimeoutMs = opts.probeTimeoutMs ?? DEFAULT_PROBE_TIMEOUT_MS;
   let openFn: GlimpseOpen | null = opts.open ?? null;
@@ -487,7 +489,7 @@ export function createDocket(opts: DocketOptions = {}): Docket {
       });
       const timer = setTimeout(() => {
         try { probeWin.close(); } catch { /* ignore */ }
-        reject(new Error(`docket: probe timed out after ${probeTimeoutMs}ms`));
+        reject(new Error(`glance: probe timed out after ${probeTimeoutMs}ms`));
       }, probeTimeoutMs);
       probeWin.once("ready", (...args: unknown[]) => {
         clearTimeout(timer);
@@ -496,7 +498,7 @@ export function createDocket(opts: DocketOptions = {}): Docket {
         const height = info?.screen?.visibleHeight ?? 0;
         try { probeWin.close(); } catch { /* ignore */ }
         if (!width || !height) {
-          reject(new Error(`docket: probe returned invalid dims (${width}×${height})`));
+          reject(new Error(`glance: probe returned invalid dims (${width}×${height})`));
           return;
         }
         dims = { width, height };
@@ -565,10 +567,10 @@ export function createDocket(opts: DocketOptions = {}): Docket {
 }
 ```
 
-- [ ] **Step 2: Run the Docket tests**
+- [ ] **Step 2: Run the Glance tests**
 
 ```bash
-npx vitest run test/docket.test.ts
+npx vitest run test/glance.test.ts
 ```
 
 Expected: all 7 tests pass.
@@ -585,32 +587,32 @@ Expected: both clean.
 - [ ] **Step 4: Commit**
 
 ```bash
-git commit -m "feat(docket): glimpseui-owning HUD module with probe-based positioning" -- src/docket.ts
+git commit -m "feat(glance): glimpseui-owning HUD module with probe-based positioning" -- src/glance.ts
 ```
 
 ---
 
-## Task 4: Wire `Docket` into the daemon
+## Task 4: Wire `Glance` into the daemon
 
 **Files:**
 - Modify: `src/daemon.ts`
 - Modify: `test/adapter-daemon.test.ts` (the existing `describe("show handler")` block)
 
-This task updates the handler name, drives a real `Docket`, and adds a `hide` handler. We keep all existing payload-validation coverage and add a parallel block for `hide`.
+This task updates the handler name, drives a real `Glance`, and adds a `hide` handler. We keep all existing payload-validation coverage and add a parallel block for `hide`.
 
 - [ ] **Step 1: Update `test/adapter-daemon.test.ts` to target the new API (failing)**
 
 Replace the `describe("show handler", ...)` block (currently `test/adapter-daemon.test.ts:54-81`) with:
 
 ```ts
-  describe("docket handlers", () => {
-    let docket: ReturnType<typeof import("../src/docket.js")["createDocket"]>;
+  describe("glance handlers", () => {
+    let glance: ReturnType<typeof import("../src/glance.js")["createGlance"]>;
 
     beforeEach(async () => {
-      const { createDocket } = await import("../src/docket.js");
-      docket = createDocket({ disabled: true });
-      const { registerDocketHandlers } = await import("../src/daemon.js");
-      registerDocketHandlers(daemon, docket);
+      const { createGlance } = await import("../src/glance.js");
+      glance = createGlance({ disabled: true });
+      const { registerGlanceHandlers } = await import("../src/daemon.js");
+      registerGlanceHandlers(daemon, glance);
     });
 
     describe("show", () => {
@@ -667,7 +669,7 @@ import { startDaemon, type Daemon } from "../src/daemon.js";
 npx vitest run test/adapter-daemon.test.ts
 ```
 
-Expected: failure referencing `registerDocketHandlers` not exported from `../src/daemon.js`. Good — test is shaped against the target API.
+Expected: failure referencing `registerGlanceHandlers` not exported from `../src/daemon.js`. Good — test is shaped against the target API.
 
 - [ ] **Step 3: Update `src/daemon.ts` to implement the new API**
 
@@ -675,15 +677,15 @@ In `src/daemon.ts`, replace the `registerShowHandler` function (currently `src/d
 
 ```ts
 // At the top of the file, alongside the existing imports:
-import { createDocket, PLACEHOLDER_HTML, type Docket } from "./docket.js";
+import { createGlance, PLACEHOLDER_HTML, type Glance } from "./glance.js";
 
 // ... (keep all existing code above registerShowHandler)
 
 export type ShowParams = { html: string; title?: string };
 
-export function registerDocketHandlers(
+export function registerGlanceHandlers(
   daemon: Pick<Daemon, "onRequest">,
-  docket: Docket,
+  glance: Glance,
 ) {
   daemon.onRequest("show", async (params) => {
     const p = params as Partial<ShowParams> | null;
@@ -693,11 +695,11 @@ export function registerDocketHandlers(
     if (p.title !== undefined && typeof p.title !== "string") {
       throw new Error("show: 'title' must be a string when provided");
     }
-    await docket.show(p.html, p.title);
+    await glance.show(p.html, p.title);
     return { ok: true };
   });
   daemon.onRequest("hide", async () => {
-    await docket.hide();
+    await glance.hide();
     return { ok: true };
   });
 }
@@ -706,19 +708,19 @@ export async function runDaemonMain() {
   const paths = resolvePaths();
   try {
     const daemon = await startDaemon(paths);
-    const docket = createDocket({
+    const glance = createGlance({
       hudMode: paths.hudMode,
-      disabled: paths.docketDisabled,
+      disabled: paths.hudDisabled,
     });
-    registerDocketHandlers(daemon, docket);
-    if (paths.hudMode === "always" && !paths.docketDisabled) {
+    registerGlanceHandlers(daemon, glance);
+    if (paths.hudMode === "always" && !paths.hudDisabled) {
       // Fire-and-forget: don't crash the daemon if the GUI is unavailable.
-      docket.show(PLACEHOLDER_HTML).catch((err) => {
-        console.error("docket: initial placeholder failed:", err);
+      glance.show(PLACEHOLDER_HTML).catch((err) => {
+        console.error("glance: initial placeholder failed:", err);
       });
     }
     const shutdown = async () => {
-      try { await docket.close(); } catch { /* ignore */ }
+      try { await glance.close(); } catch { /* ignore */ }
     };
     process.on("exit", () => { void shutdown(); });
     process.on("SIGTERM", shutdown);
@@ -742,17 +744,17 @@ npx tsc -p tsconfig.test.json
 npm test
 ```
 
-Expected: all tests pass. The `e2e.test.ts` tests will still assert on `docket_show` at this stage — they should still pass because we haven't renamed the tool yet. If they fail because `registerDocketShow` in `adapter.ts` no longer compiles, stop here — it should still compile; nothing in adapter.ts has changed yet.
+Expected: all tests pass. The `e2e.test.ts` tests will still assert on the pre-rename precursor tool name at this stage — they should still pass because we haven't renamed the adapter tool yet. If `adapter.ts` no longer compiles, stop here — it should still compile; nothing in adapter.ts has changed yet.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git commit -m "feat(daemon): drive Docket from show/hide handlers; drop ping stub" -- src/daemon.ts test/adapter-daemon.test.ts
+git commit -m "feat(daemon): drive Glance from show/hide handlers; drop ping stub" -- src/daemon.ts test/adapter-daemon.test.ts
 ```
 
 ---
 
-## Task 5: Rename adapter MCP tools → `set_docket` + `hide_docket`
+## Task 5: Rename adapter MCP tools → `set_glance` + `hide_glance`
 
 **Files:**
 - Modify: `src/adapter.ts`
@@ -760,13 +762,13 @@ git commit -m "feat(daemon): drive Docket from show/hide handlers; drop ping stu
 
 - [ ] **Step 1: Update `test/e2e.test.ts` to fail against the new tool names**
 
-At `test/e2e.test.ts:14-16`, extend the `beforeEach` so the Docket stays disabled during e2e (the daemon starts in `always` mode by default, which would try to spawn glimpse on a CI runner):
+At `test/e2e.test.ts:14-16`, extend the `beforeEach` so the Glance stays disabled during e2e (the daemon starts in `always` mode by default, which would try to spawn glimpse on a CI runner):
 
 ```ts
   beforeEach(() => {
     env = freshEnv({
-      CLAWD_DOCKLET_IDLE_MS: "300",
-      CLAWD_DOCKLET_DOCKET_DISABLED: "1",
+      AGENT_GLANCE_IDLE_MS: "300",
+      AGENT_GLANCE_HUD_DISABLED: "1",
     });
   });
 ```
@@ -774,7 +776,7 @@ At `test/e2e.test.ts:14-16`, extend the `beforeEach` so the Docket stays disable
 Then replace the two existing tool tests and add a hide test. The final block (lines `29-71` today) should be:
 
 ```ts
-  test("initialize handshake advertises set_docket and hide_docket tools", async () => {
+  test("initialize handshake advertises set_glance and hide_glance tools", async () => {
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: [ENTRY],
@@ -784,21 +786,20 @@ Then replace the two existing tool tests and add a hide test. The final block (l
 
     await client.connect(transport);
     const info = client.getServerVersion();
-    expect(info?.name).toBe("clawd-docklet");
-    expect(info?.version).toBe("0.0.1");
+    expect(info?.name).toBe("agent-glance");
+    expect(info?.version).toBe("0.1.0");
 
     const caps = client.getServerCapabilities();
     expect(caps?.tools).toBeDefined();
 
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
-    expect(names).toEqual(expect.arrayContaining(["set_docket", "hide_docket"]));
-    expect(names).not.toContain("docket_show");
+    expect(names).toEqual(expect.arrayContaining(["set_glance", "hide_glance"]));
 
     await client.close();
   });
 
-  test("calling set_docket forwards to the daemon and returns ok", async () => {
+  test("calling set_glance forwards to the daemon and returns ok", async () => {
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: [ENTRY],
@@ -808,7 +809,7 @@ Then replace the two existing tool tests and add a hide test. The final block (l
     await client.connect(transport);
 
     const result = await client.callTool({
-      name: "set_docket",
+      name: "set_glance",
       arguments: { html: "<h1>hello</h1>", title: "greet" },
     });
     expect(result.isError).toBeFalsy();
@@ -819,7 +820,7 @@ Then replace the two existing tool tests and add a hide test. The final block (l
     await client.close();
   });
 
-  test("calling hide_docket forwards to the daemon and returns ok", async () => {
+  test("calling hide_glance forwards to the daemon and returns ok", async () => {
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: [ENTRY],
@@ -829,7 +830,7 @@ Then replace the two existing tool tests and add a hide test. The final block (l
     await client.connect(transport);
 
     const result = await client.callTool({
-      name: "hide_docket",
+      name: "hide_glance",
       arguments: {},
     });
     expect(result.isError).toBeFalsy();
@@ -848,20 +849,20 @@ Leave the `"two adapters share one daemon"` test unchanged.
 npm run build && npx vitest run test/e2e.test.ts
 ```
 
-Expected: failures on `set_docket` / `hide_docket` not being in `tools/list`. This is the TDD red step.
+Expected: failures on `set_glance` / `hide_glance` not being in `tools/list`. This is the TDD red step.
 
 - [ ] **Step 3: Update `src/adapter.ts`**
 
-In `src/adapter.ts`, replace the existing `registerDocketShow` function (`src/adapter.ts:95-112`) with:
+In `src/adapter.ts`, replace the existing precursor registrar function (`src/adapter.ts:95-112`) with:
 
 ```ts
-export function registerDocketTools(mcp: McpServer, daemon: Pick<DaemonClient, "request">) {
+export function registerGlanceTools(mcp: McpServer, daemon: Pick<DaemonClient, "request">) {
   mcp.registerTool(
-    "set_docket",
+    "set_glance",
     {
-      title: "Set HTML in Docklet HUD",
+      title: "Set HTML in Glance HUD",
       description:
-        "Render the given HTML in the shared Docklet HUD window (top-right of the screen, frameless, transparent, clickthrough). Multiple MCP clients share a single window owned by the daemon; each call replaces the previous HTML.",
+        "Render the given HTML in the shared Glance HUD window (top-right of the screen, frameless, transparent, clickthrough). Multiple MCP clients share a single window owned by the daemon; each call replaces the previous HTML.",
       inputSchema: {
         html: z.string().describe("HTML document or fragment to render."),
         title: z.string().optional().describe("Optional window title."),
@@ -874,11 +875,11 @@ export function registerDocketTools(mcp: McpServer, daemon: Pick<DaemonClient, "
   );
 
   mcp.registerTool(
-    "hide_docket",
+    "hide_glance",
     {
-      title: "Hide the Docklet HUD",
+      title: "Hide the Glance HUD",
       description:
-        "Close the shared Docklet HUD window. A subsequent `set_docket` will reopen it.",
+        "Close the shared Glance HUD window. A subsequent `set_glance` will reopen it.",
       inputSchema: {},
     },
     async () => {
@@ -889,16 +890,10 @@ export function registerDocketTools(mcp: McpServer, daemon: Pick<DaemonClient, "
 }
 ```
 
-Then update the call inside `runAdapterMain` (`src/adapter.ts:120`) from:
+Then update the call inside `runAdapterMain` (`src/adapter.ts:120`) to:
 
 ```ts
-  registerDocketShow(mcp, daemon);
-```
-
-to:
-
-```ts
-  registerDocketTools(mcp, daemon);
+  registerGlanceTools(mcp, daemon);
 ```
 
 - [ ] **Step 4: Rebuild, run the full test suite**
@@ -908,12 +903,12 @@ npm run build
 npm test
 ```
 
-Expected: every test passes (protocol + adapter-daemon + docket + e2e).
+Expected: every test passes (protocol + adapter-daemon + glance + e2e).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git commit -m "feat(adapter): rename docket_show → set_docket; add hide_docket" -- src/adapter.ts test/e2e.test.ts
+git commit -m "feat(adapter): add set_glance + hide_glance MCP tools" -- src/adapter.ts test/e2e.test.ts
 ```
 
 ---
@@ -922,42 +917,42 @@ git commit -m "feat(adapter): rename docket_show → set_docket; add hide_docket
 
 **Files:** none (verification step). Run this on a macOS machine with a display.
 
-The automated tests run with `CLAWD_DOCKLET_DOCKET_DISABLED=1`. This task verifies the real glimpseui path works end-to-end.
+The automated tests run with `AGENT_GLANCE_HUD_DISABLED=1`. This task verifies the real glimpseui path works end-to-end.
 
 - [ ] **Step 1: Rebuild and clear any running daemon**
 
 ```bash
 npm run build
 pkill -f "dist/index.js" || true
-rm -f "$HOME/Library/Application Support/clawd-docklet/daemon.sock" \
-      "$HOME/Library/Application Support/clawd-docklet/daemon.pid"
+rm -f "$HOME/Library/Application Support/agent-glance/daemon.sock" \
+      "$HOME/Library/Application Support/agent-glance/daemon.pid"
 ```
 
 - [ ] **Step 2: Start the daemon in `always` mode and confirm the placeholder HUD appears**
 
 ```bash
-CLAWD_DOCKLET_ROLE=daemon CLAWD_DOCKLET_IDLE_MS=0 node ./dist/index.js &
+AGENT_GLANCE_ROLE=daemon AGENT_GLANCE_IDLE_MS=0 node ./dist/index.js &
 DAEMON_PID=$!
 sleep 1
 ```
 
-Expected: a small pill with a green dot and "clawd-docklet" text appears in the top-right corner of the primary display. Frameless, translucent, does not accept clicks (clickthrough).
+Expected: a small pill with a green dot and "agent-glance" text appears in the top-right corner of the primary display. Frameless, translucent, does not accept clicks (clickthrough).
 
 - [ ] **Step 3: Replace its contents via a transient MCP client**
 
 Use any MCP client (e.g., Claude Code running against `dist/index.js`) and call:
 
 ```json
-{ "name": "set_docket", "arguments": { "html": "<body style='background:rgba(0,0,0,0.6);color:white;padding:20px;font-family:system-ui'>Hello from smoke test</body>" } }
+{ "name": "set_glance", "arguments": { "html": "<body style='background:rgba(0,0,0,0.6);color:white;padding:20px;font-family:system-ui'>Hello from smoke test</body>" } }
 ```
 
 Expected: the HUD's contents update in place. No flicker, no reposition (same window).
 
-- [ ] **Step 4: Call `hide_docket`**
+- [ ] **Step 4: Call `hide_glance`**
 
 Expected: the HUD window closes.
 
-- [ ] **Step 5: Call `set_docket` again with a new payload**
+- [ ] **Step 5: Call `set_glance` again with a new payload**
 
 Expected: the HUD re-opens at the top-right with the new content, no noticeable probe delay (cached dims).
 
@@ -972,7 +967,7 @@ kill "$DAEMON_PID"
 Note in `bd remember` whether the smoke test passed:
 
 ```bash
-bd remember "docklet HUD smoke test on macOS $(sw_vers -productVersion): placeholder visible, set_docket updates in place, hide closes, reopen is fast. Verified on commit $(git rev-parse --short HEAD)."
+bd remember "glance HUD smoke test on macOS $(sw_vers -productVersion): placeholder visible, set_glance updates in place, hide closes, reopen is fast. Verified on commit $(git rev-parse --short HEAD)."
 ```
 
 If any step fails, file a follow-up issue and keep `docklet-878` open until resolved.
@@ -989,7 +984,7 @@ If any step fails, file a follow-up issue and keep `docklet-878` open until reso
 npm run build && npm test
 ```
 
-Expected: all tests pass. Four suites: `test/protocol.test.ts`, `test/docket.test.ts`, `test/adapter-daemon.test.ts`, `test/e2e.test.ts`.
+Expected: all tests pass. Four suites: `test/protocol.test.ts`, `test/glance.test.ts`, `test/adapter-daemon.test.ts`, `test/e2e.test.ts`.
 
 - [ ] **Step 2: Run preflight checks**
 
@@ -1002,7 +997,7 @@ Address any `bd lint` / `bd stale` / `bd orphans` output before proceeding.
 - [ ] **Step 3: Close `docklet-878`**
 
 ```bash
-bd close docklet-878 --reason="Docket HUD shipped: set_docket/hide_docket tools, daemon-owned glimpseui window with probe-based top-right positioning, hudMode + docketDisabled knobs."
+bd close docklet-878 --reason="Glance HUD shipped: set_glance/hide_glance tools, daemon-owned glimpseui window with probe-based top-right positioning, hudMode + hudDisabled knobs."
 ```
 
 - [ ] **Step 4: Push everything**
@@ -1016,7 +1011,7 @@ git status   # must show "up to date with origin"
 
 - [ ] **Step 5: Hand off**
 
-Report the commit SHAs, the smoke-test result, and the spec filename so the next session knows where to pick up follow-ups (rename `docket` → something better; consider `resize_docket`; revisit placeholder design).
+Report the commit SHAs, the smoke-test result, and the spec filename so the next session knows where to pick up follow-ups (consider `resize_glance`; revisit placeholder design).
 
 ---
 

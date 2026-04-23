@@ -1,17 +1,18 @@
-# `clawd-docklet` — MCP Server Shell Design
+# `agent-glance` — MCP Server Shell Design
 
 **Date:** 2026-04-23
 **Status:** Approved — shipped (docklet-2v5); subsequent work builds on this.
+**Renamed from:** 2026-04-23-clawd-docklet-shell-design.md (docklet-6ye, 2026-04-23)
 **Scope:** Minimal runnable shell, installable via MCP server installer. No tools yet.
 **Follow-ups built on this shell:**
-- [`2026-04-23-docket-hud-design.md`](./2026-04-23-docket-hud-design.md) — first real tools (`write_docket`, `hide_docket`) + daemon-owned glimpseui window (docklet-878).
-- [`2026-04-23-docket-read-edit-tools.md`](./2026-04-23-docket-read-edit-tools.md) — `read_docket` / `edit_docket` mirroring the FS Read/Edit pair for token-efficient HUD patching (docklet-494).
+- [`2026-04-23-glance-hud-design.md`](./2026-04-23-glance-hud-design.md) — first real tools (`write_glance`, `hide_glance`) + daemon-owned glimpseui window (docklet-878).
+- [`2026-04-23-glance-read-edit-tools.md`](./2026-04-23-glance-read-edit-tools.md) — `read_glance` / `edit_glance` mirroring the FS Read/Edit pair for token-efficient HUD patching (docklet-494).
 
 ## 1. Purpose
 
-Ship a TypeScript MCP server published to npm as `clawd-docklet` that:
+Ship a TypeScript MCP server published to npm as `agent-glance` that:
 
-1. Installs with a single command: `claude mcp add clawd-docklet -- npx -y clawd-docklet`.
+1. Installs with a single command: `claude mcp add agent-glance -- npx -y agent-glance`.
 2. Has structural seams for a singleton adapter/daemon architecture so future glimpseui tools can be shared across multiple MCP client sessions (Claude Code #1, Claude Code #2, Codex) without opening duplicate windows.
 3. Ships today with zero tools registered — a valid MCP handshake is the only user-visible behavior.
 
@@ -32,10 +33,10 @@ Codex     ──stdio──▶ adapter ─┘
 
 ### Single-binary dispatch
 
-One compiled entry (`dist/index.js`) with `#!/usr/bin/env node`. Dispatches by `CLAWD_DOCKLET_ROLE` env var:
+One compiled entry (`dist/index.js`) with `#!/usr/bin/env node`. Dispatches by `AGENT_GLANCE_ROLE` env var:
 
 - unset → runs as adapter (default; this is what npm's `bin` invokes)
-- `daemon` → runs as daemon (how the adapter spawns it via `spawn(process.execPath, [entry], { env: { ...env, CLAWD_DOCKLET_ROLE: "daemon" }, detached: true, stdio: "ignore" })`)
+- `daemon` → runs as daemon (how the adapter spawns it via `spawn(process.execPath, [entry], { env: { ...env, AGENT_GLANCE_ROLE: "daemon" }, detached: true, stdio: "ignore" })`)
 
 ## 3. Shell scope (what gets built now)
 
@@ -66,18 +67,18 @@ All paths and timeouts overridable via env for testability:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `CLAWD_DOCKLET_SOCKET` | `~/Library/Application Support/clawd-docklet/daemon.sock` (mac), `$XDG_RUNTIME_DIR/clawd-docklet.sock` (linux), `\\.\pipe\clawd-docklet` (win) | Socket path |
-| `CLAWD_DOCKLET_PIDFILE` | Same dir as socket, `daemon.pid` | Pidfile written on bind |
-| `CLAWD_DOCKLET_IDLE_MS` | `30000` | Ms after last client disconnect before daemon exits |
-| `CLAWD_DOCKLET_ROLE` | unset | `daemon` to run as daemon |
+| `AGENT_GLANCE_SOCKET` | `~/Library/Application Support/agent-glance/daemon.sock` (mac), `$XDG_RUNTIME_DIR/agent-glance.sock` (linux), `\\.\pipe\agent-glance` (win) | Socket path |
+| `AGENT_GLANCE_PIDFILE` | Same dir as socket, `daemon.pid` | Pidfile written on bind |
+| `AGENT_GLANCE_IDLE_MS` | `30000` | Ms after last client disconnect before daemon exits |
+| `AGENT_GLANCE_ROLE` | unset | `daemon` to run as daemon |
 
 ## 5. Package metadata
 
-- **Name**: `clawd-docklet` (unscoped)
-- **Version**: `0.0.1`
+- **Name**: `agent-glance` (unscoped)
+- **Version**: `0.1.0`
 - **License**: MIT
 - **Entry**: `dist/index.js` (with shebang, chmod +x via `prepare` script)
-- **Bin**: `{ "clawd-docklet": "dist/index.js" }`
+- **Bin**: `{ "agent-glance": "dist/index.js" }`
 - **Type**: `module` (ESM)
 - **Files published**: `["dist"]`
 - **Engines**: `node >= 18`
@@ -101,11 +102,11 @@ Rationale: shell has no meaningful behavior for idle shutdown / race to validate
 
 ```bash
 # After publish
-claude mcp add clawd-docklet -- npx -y clawd-docklet
+claude mcp add agent-glance -- npx -y agent-glance
 
 # Local dev
 npm link
-claude mcp add clawd-docklet -- clawd-docklet
+claude mcp add agent-glance -- agent-glance
 ```
 
 ## 8. Out of scope (deferred)

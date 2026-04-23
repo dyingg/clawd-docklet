@@ -1,14 +1,15 @@
-# Docket status-item — menu-bar anchor control
+# Glance status-item — menu-bar anchor control
 
 **Date:** 2026-04-23
 **Status:** Draft — pending review
+**Renamed from:** 2026-04-23-docket-status-item.md (docklet-6ye, 2026-04-23)
 **Scope:** Daemon-owned macOS menu-bar status item. Clicking it opens a small HTML popover with six actions that reposition (or hide) the HUD: top-right, top-left, bottom-right, bottom-left, follow-cursor, hide. Chosen anchor persists across daemon restarts.
 **Issue:** docklet-dys
-**Depends on:** [`2026-04-23-docket-hud-design.md`](./2026-04-23-docket-hud-design.md) — reuses the HUD's `probe()` and lifecycle scaffolding.
+**Depends on:** [`2026-04-23-glance-hud-design.md`](./2026-04-23-glance-hud-design.md) — reuses the HUD's `probe()` and lifecycle scaffolding.
 
 ## 1. Purpose
 
-Today the HUD is pinned top-right (`src/docket.ts:157-180`). Users can't move it, choose a different corner, or have it follow the cursor. The HUD is `clickThrough: true`, which rules out in-window drag handles entirely: Swift sets `NSWindow.ignoresMouseEvents = true` (`glimpse.swift:386-388`), so AppKit never sees a mouse-down to start a drag, and `-webkit-app-region: drag` can't work without webview input.
+Today the HUD is pinned top-right (`src/glance.ts:157-180`). Users can't move it, choose a different corner, or have it follow the cursor. The HUD is `clickThrough: true`, which rules out in-window drag handles entirely: Swift sets `NSWindow.ignoresMouseEvents = true` (`glimpse.swift:386-388`), so AppKit never sees a mouse-down to start a drag, and `-webkit-app-region: drag` can't work without webview input.
 
 A menu-bar status item sidesteps the clickthrough constraint. The status item is a separate glimpseui window (statusItem mode, `glimpse.swift:449-474`); clicking it opens a popover whose HTML we author. Popover click-handlers send messages back to the daemon, which repositions the HUD.
 
@@ -22,18 +23,18 @@ A menu-bar status item sidesteps the clickthrough constraint. The status item is
 
 ```
 daemon (src/daemon.ts)
-  ├─ docket            (existing: HUD window, src/docket.ts)
+  ├─ glance            (existing: HUD window, src/glance.ts)
   └─ statusItem        (new: NSStatusItem + popover, src/status-item.ts)
          ▲                                │
          │ on("message", {type, anchor})  │  popover HTML runs in glimpse webview
          │                                ▼
-         └──── daemon: writeConfig(...) + docket.setAnchor(...)
+         └──── daemon: writeConfig(...) + glance.setAnchor(...)
 ```
 
 - Daemon owns the status item for its full lifetime. Opened on daemon start (gated by env/config) and closed on idle shutdown.
 - New `src/status-item.ts` owns the statusItem glimpseui window and the popover HTML. UI-only; takes callbacks for `onAnchor(anchor)` and `onHide()`.
-- New `src/config.ts` reads/writes `~/Library/Application Support/clawd-docklet/config.json`. Atomic writes (tmp + rename).
-- `src/docket.ts` gains `setAnchor(anchor)`. HUD closes-and-reopens at the new position, preserving the last rendered HTML.
+- New `src/config.ts` reads/writes `~/Library/Application Support/agent-glance/config.json`. Atomic writes (tmp + rename).
+- `src/glance.ts` gains `setAnchor(anchor)`. HUD closes-and-reopens at the new position, preserving the last rendered HTML.
 
 ## 3. Status-item popover UI
 
@@ -50,13 +51,13 @@ Popover size: 220×260 px. Six rows; the active anchor is marked with a filled d
 
 Interaction:
 
-- Rows 1–5 → daemon calls `writeConfig` then `docket.setAnchor(anchor)`. Popover closes.
-- Row 6 → daemon calls `docket.hide()`. Config is **not** changed. Status item stays up; the next `write_docket` reopens the HUD at the current saved anchor.
+- Rows 1–5 → daemon calls `writeConfig` then `glance.setAnchor(anchor)`. Popover closes.
+- Row 6 → daemon calls `glance.hide()`. Config is **not** changed. Status item stays up; the next `write_glance` reopens the HUD at the current saved anchor.
 - Clicking outside the popover dismisses it (glimpseui's `NSPopover` uses `behavior = .transient`).
 
 ## 4. Anchor computation
 
-In `src/docket.ts`, the current hard-coded top-right formula (`docket.ts:166-167`):
+In `src/glance.ts`, the current hard-coded top-right formula (`glance.ts:166-167`):
 
 ```ts
 x: d.width - HUD_WIDTH - MARGIN,
@@ -76,18 +77,18 @@ becomes a `positionFor(anchor, d)` helper:
 Notes:
 
 - glimpseui/AppKit coordinates have the origin at the bottom-left, which is why `top-*` uses `d.height - HUD_HEIGHT - MARGIN`.
-- Probe already returns `visibleHeight` (excluding menu bar, `docket.ts:114-115`), so top anchors land below the menu bar automatically.
+- Probe already returns `visibleHeight` (excluding menu bar, `glance.ts:114-115`), so top anchors land below the menu bar automatically.
 - `cursorOffset` for follow-cursor keeps the HUD visually near the cursor without occluding it; concrete offset values are a tuning decision in M3.
 
 ## 5. Runtime anchor change
 
-glimpseui has no post-create "move" RPC. Switching corners means close-and-reopen. `docket.setAnchor`:
+glimpseui has no post-create "move" RPC. Switching corners means close-and-reopen. `glance.setAnchor`:
 
 ```ts
 async setAnchor(anchor: Anchor): Promise<void> {
   currentAnchor = anchor;
   if (disabled || !win) return;           // nothing to reposition yet
-  const html = lastHtml;                  // docket tracks last rendered HTML
+  const html = lastHtml;                  // glance tracks last rendered HTML
   try { win.close(); } catch {}
   win = null;
   const d = await probe();                // cached, usually instant
@@ -112,7 +113,7 @@ export function readConfig(path: string): Config;          // sync; defaults on 
 export function writeConfig(path: string, c: Config): Promise<void>;  // atomic
 ```
 
-- Path default: `<socketDir>/config.json` (reuses `defaultSocketDir()` from `paths.ts`). Override via `CLAWD_DOCKLET_CONFIG`.
+- Path default: `<socketDir>/config.json` (reuses `defaultSocketDir()` from `paths.ts`). Override via `AGENT_GLANCE_CONFIG`.
 - Atomic write: write `config.json.tmp`, `fsync`, `rename` onto `config.json`.
 - Missing file → default `{ anchor: "top-right" }`, no write.
 - Invalid JSON or unknown anchor value → log once, return default, no write. `readConfig` never throws.
@@ -121,29 +122,29 @@ export function writeConfig(path: string, c: Config): Promise<void>;  // atomic
 
 | Env var                               | Default                     | Purpose                                                        |
 |---------------------------------------|-----------------------------|----------------------------------------------------------------|
-| `CLAWD_DOCKLET_CONFIG`                | `<socketDir>/config.json`   | Persisted config path                                          |
-| `CLAWD_DOCKLET_STATUS_DISABLED`       | `0`                         | When `1`, daemon skips status-item setup (tests / headless CI) |
+| `AGENT_GLANCE_CONFIG`                 | `<socketDir>/config.json`   | Persisted config path                                          |
+| `AGENT_GLANCE_STATUS_DISABLED`        | `0`                         | When `1`, daemon skips status-item setup (tests / headless CI) |
 
-`CLAWD_DOCKLET_DOCKET_DISABLED=1` implicitly disables the status item — no HUD means nothing for the popover to control.
+`AGENT_GLANCE_HUD_DISABLED=1` implicitly disables the status item — no HUD means nothing for the popover to control.
 
 ## 8. Daemon wiring (`src/daemon.ts`)
 
-In `runDaemonMain`, after `createDocket(...)`:
+In `runDaemonMain`, after `createGlance(...)`:
 
 ```ts
 const initialAnchor = readConfig(paths.configPath).anchor;
-docket.setAnchor(initialAnchor);   // no-op if HUD not yet open
+glance.setAnchor(initialAnchor);   // no-op if HUD not yet open
 
 const statusItem =
-  paths.statusDisabled || paths.docketDisabled
+  paths.statusDisabled || paths.hudDisabled
     ? null
     : createStatusItem({
         initialAnchor,
         onAnchor: async (a) => {
           await writeConfig(paths.configPath, { anchor: a });
-          await docket.setAnchor(a);
+          await glance.setAnchor(a);
         },
-        onHide: () => docket.hide(),
+        onHide: () => glance.hide(),
       });
 ```
 
@@ -156,16 +157,16 @@ Layer 1 (pure unit, no glimpseui):
 - `test/config.test.ts` — `readConfig` returns default on missing file, invalid JSON, unknown anchor; `writeConfig` is atomic (tmp file gone after success; existing config untouched on tmp-write failure).
 - `test/status-item.test.ts` — popover `message` handlers: `{type:"set-anchor", anchor:"top-left"}` invokes `onAnchor("top-left")`; `{type:"hide-hud"}` invokes `onHide`; malformed / unknown-type messages are ignored without throwing.
 
-Layer 2 (docket with injected `open`):
+Layer 2 (glance with injected `open`):
 
 - Anchor computation: for each of the five anchors, `openReal` is called with the expected `(x, y)` and option flags given fixed probe dims.
-- `docket.setAnchor(next)` after `show(html)`: asserts close-and-reopen with preserved HTML and new coordinates.
+- `glance.setAnchor(next)` after `show(html)`: asserts close-and-reopen with preserved HTML and new coordinates.
 
 Layer 4: skip. NSStatusBar interaction isn't automatable in headless CI; rely on manual smoke test.
 
 ## 10. Milestones
 
-- **M1 — Config + anchor computation.** `src/config.ts`, `positionFor` helper in `docket.ts`, `docket.setAnchor`. No status item yet; expose initial anchor via `CLAWD_DOCKLET_ANCHOR` env var for manual smoke test. Unit + Layer 2 tests.
+- **M1 — Config + anchor computation.** `src/config.ts`, `positionFor` helper in `glance.ts`, `glance.setAnchor`. No status item yet; expose initial anchor via `AGENT_GLANCE_ANCHOR` env var for manual smoke test. Unit + Layer 2 tests.
 - **M2 — Status item + popover UI.** `src/status-item.ts`, daemon wiring, popover HTML. Manual smoke test: run daemon locally, click through all six rows, confirm HUD reposition and config persistence across daemon restart.
 - **M3 — Polish.** Current-selection dot + row hover states, dark-mode styling from `info.appearance.darkMode`, tuned follow-cursor offsets.
 
@@ -173,4 +174,4 @@ Layer 4: skip. NSStatusBar interaction isn't automatable in headless CI; rely on
 
 - Status-item button title: short text ("D") vs. unicode glyph ("◨") vs. SF Symbol. Glimpse currently sets `button.title` from `config.title` (`glimpse.swift:467`) with no SF Symbol plumbing. Start with "D" in M2; revisit if it looks out of place.
 - Keyboard shortcut to cycle anchors? Deferred; status item is enough for v1.
-- Behaviour when display configuration changes mid-session (monitor plug/unplug). Probe dims are cached (`docket.ts:75-79`). Out of scope — user restarts the daemon. May need a probe-invalidation path later.
+- Behaviour when display configuration changes mid-session (monitor plug/unplug). Probe dims are cached (`glance.ts:75-79`). Out of scope — user restarts the daemon. May need a probe-invalidation path later.
