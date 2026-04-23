@@ -171,7 +171,7 @@ export async function runAdapterMain() {
   const daemonSock = await getOrSpawnDaemon(paths);
   const daemon = new DaemonClient(daemonSock);
 
-  const mcp = new McpServer({ name: "agent-glance", version: "0.0.1" });
+  const mcp = new McpServer({ name: "agent-glance", version: "0.1.0" });
   registerGlanceTools(mcp, daemon);
 
   const cleanup = () => {

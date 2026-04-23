@@ -39,7 +39,7 @@ describe("end-to-end MCP over stdio", () => {
     await client.connect(transport);
     const info = client.getServerVersion();
     expect(info?.name).toBe("agent-glance");
-    expect(info?.version).toBe("0.0.1");
+    expect(info?.version).toBe("0.1.0");
 
     const caps = client.getServerCapabilities();
     expect(caps?.tools).toBeDefined();
