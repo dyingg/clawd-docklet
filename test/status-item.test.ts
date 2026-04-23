@@ -71,7 +71,7 @@ describe("createStatusItem", () => {
     expect(windows[0].openArgs.options).toMatchObject({
       width: 240,
       height: 224,
-      title: "D",
+      title: "▣",
     });
     expect(windows[0].openArgs.html).toContain('var SELECTED = "follow-cursor"');
   });

@@ -2,7 +2,7 @@ import { type Anchor, isAnchor } from "./config.js";
 
 const POPOVER_WIDTH = 240;
 const POPOVER_HEIGHT = 224;
-const STATUS_TITLE = "D";
+const STATUS_TITLE = "▣";
 
 export type GStatusWindow = {
   setHTML: (html: string) => void;
