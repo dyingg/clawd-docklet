@@ -5,13 +5,16 @@ import { platform } from "node:os";
 import { encode, LineDecoder, type Frame, type ReqFrame } from "./protocol.js";
 import { resolvePaths, type Paths } from "./paths.js";
 import { createDocket, PLACEHOLDER_HTML, type Docket } from "./docket.js";
+import { createDocketBuffer, type DocketBuffer, type EditParams } from "./docket-buffer.js";
 
 type Handler = (params: unknown, ctx: { connId: string }) => Promise<unknown>;
+type ConnectionCloseListener = (connId: string) => void;
 
 export type Daemon = {
   server: Server;
   close: () => Promise<void>;
   onRequest: (method: string, handler: Handler) => void;
+  onConnectionClose: (listener: ConnectionCloseListener) => void;
   connections: number;
 };
 
@@ -26,6 +29,7 @@ export async function startDaemon(paths: Paths = resolvePaths()): Promise<Daemon
   }
 
   const handlers = new Map<string, Handler>();
+  const closeListeners: ConnectionCloseListener[] = [];
   const conns = new Set<Socket>();
   let idleTimer: NodeJS.Timeout | null = null;
 
@@ -46,6 +50,9 @@ export async function startDaemon(paths: Paths = resolvePaths()): Promise<Daemon
     });
     sock.on("close", () => {
       conns.delete(sock);
+      for (const l of closeListeners) {
+        try { l(connId); } catch { /* ignore */ }
+      }
       if (conns.size === 0) scheduleIdleExit();
     });
     sock.on("error", () => {
@@ -99,6 +106,9 @@ export async function startDaemon(paths: Paths = resolvePaths()): Promise<Daemon
     onRequest(method, handler) {
       handlers.set(method, handler);
     },
+    onConnectionClose(listener) {
+      closeListeners.push(listener);
+    },
     close: () =>
       new Promise<void>((resolve) => {
         if (idleTimer) clearTimeout(idleTimer);
@@ -115,8 +125,8 @@ function cryptoRandom(): string {
 export type WriteParams = { html: string; title?: string };
 
 export function registerDocketHandlers(
-  daemon: Pick<Daemon, "onRequest">,
-  docket: Docket,
+  daemon: Pick<Daemon, "onRequest" | "onConnectionClose">,
+  buffer: DocketBuffer,
 ) {
   daemon.onRequest("write", async (params) => {
     const p = params as Partial<WriteParams> | null;
@@ -126,13 +136,38 @@ export function registerDocketHandlers(
     if (p.title !== undefined && typeof p.title !== "string") {
       throw new Error("write: 'title' must be a string when provided");
     }
-    await docket.show(p.html, p.title);
-    return { ok: true };
+    const version = buffer.write(p.html);
+    return { ok: true, version };
   });
   daemon.onRequest("hide", async () => {
-    await docket.hide();
-    return { ok: true };
+    const version = buffer.hide();
+    return { ok: true, version };
   });
+  daemon.onRequest("read", async (_params, ctx) => {
+    return buffer.read(ctx.connId);
+  });
+  daemon.onRequest("edit", async (params, ctx) => {
+    const p = params as Partial<EditParams> | null;
+    if (!p || typeof p.old_string !== "string") {
+      throw new Error("edit: 'old_string' must be a string");
+    }
+    if (typeof p.new_string !== "string") {
+      throw new Error("edit: 'new_string' must be a string");
+    }
+    if (p.replace_all !== undefined && typeof p.replace_all !== "boolean") {
+      throw new Error("edit: 'replace_all' must be a boolean when provided");
+    }
+    const result = buffer.edit(ctx.connId, {
+      old_string: p.old_string,
+      new_string: p.new_string,
+      replace_all: p.replace_all,
+    });
+    if (!result.ok) {
+      throw new Error(`${result.code}: ${result.message}`);
+    }
+    return { ok: true, version: result.version };
+  });
+  daemon.onConnectionClose((connId) => buffer.forgetClient(connId));
 }
 
 export async function runDaemonMain() {
@@ -140,9 +175,19 @@ export async function runDaemonMain() {
   try {
     const daemon = await startDaemon(paths);
     const docket = createDocket({ disabled: paths.docketDisabled });
-    registerDocketHandlers(daemon, docket);
+    const buffer = createDocketBuffer({
+      initialHtml: paths.hudMode === "always" ? PLACEHOLDER_HTML : "",
+      onChange: (html) => {
+        if (paths.docketDisabled) return;
+        const p = html === "" ? docket.hide() : docket.show(html);
+        p.catch((err) => console.error("docket: render failed:", err));
+      },
+    });
+    registerDocketHandlers(daemon, buffer);
     if (paths.hudMode === "always" && !paths.docketDisabled) {
-      // Fire-and-forget: don't crash the daemon if the GUI is unavailable.
+      // Render the placeholder once on startup — buffer holds it at version 0
+      // so the next read_docket returns it, but onChange doesn't fire until a
+      // mutation, so we render directly here.
       docket.show(PLACEHOLDER_HTML).catch((err) => {
         console.error("docket: initial placeholder failed:", err);
       });

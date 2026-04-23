@@ -29,7 +29,7 @@ describe("end-to-end MCP over stdio", () => {
     cleanupEnv(env);
   });
 
-  test("initialize handshake advertises write_docket and hide_docket tools", async () => {
+  test("initialize handshake advertises write/read/edit/hide_docket tools", async () => {
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: [ENTRY],
@@ -47,7 +47,9 @@ describe("end-to-end MCP over stdio", () => {
 
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
-    expect(names).toEqual(expect.arrayContaining(["write_docket", "hide_docket"]));
+    expect(names).toEqual(
+      expect.arrayContaining(["write_docket", "hide_docket", "read_docket", "edit_docket"]),
+    );
     expect(names).not.toContain("docket_show");
     expect(names).not.toContain("set_docket");
 
@@ -71,6 +73,64 @@ describe("end-to-end MCP over stdio", () => {
     const content = result.content as Array<{ type: string; text?: string }>;
     expect(content[0]?.type).toBe("text");
     expect(content[0]?.text).toBe("ok");
+
+    await client.close();
+  });
+
+  test("write → read → edit → read round-trip over MCP", async () => {
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [ENTRY],
+      env: env as NodeJS.ProcessEnv as Record<string, string>,
+    });
+    const client = new Client({ name: "test", version: "0.0.0" }, { capabilities: {} });
+    await client.connect(transport);
+
+    await client.callTool({
+      name: "write_docket",
+      arguments: { html: "<div id=a>hi</div>" },
+    });
+
+    const readRes = await client.callTool({ name: "read_docket", arguments: {} });
+    const readContent = readRes.content as Array<{ type: string; text?: string }>;
+    expect(readContent[0]?.text).toBe("<div id=a>hi</div>");
+
+    const editRes = await client.callTool({
+      name: "edit_docket",
+      arguments: { old_string: "hi", new_string: "bye" },
+    });
+    expect(editRes.isError).toBeFalsy();
+    const editContent = editRes.content as Array<{ type: string; text?: string }>;
+    expect(editContent[0]?.text).toMatch(/ok \(version=\d+\)/);
+
+    const readAfter = await client.callTool({ name: "read_docket", arguments: {} });
+    const readAfterContent = readAfter.content as Array<{ type: string; text?: string }>;
+    expect(readAfterContent[0]?.text).toBe("<div id=a>bye</div>");
+
+    await client.close();
+  });
+
+  test("edit_docket without a prior read_docket surfaces MustReadFirst as isError", async () => {
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [ENTRY],
+      env: env as NodeJS.ProcessEnv as Record<string, string>,
+    });
+    const client = new Client({ name: "test", version: "0.0.0" }, { capabilities: {} });
+    await client.connect(transport);
+
+    await client.callTool({
+      name: "write_docket",
+      arguments: { html: "<p>hi</p>" },
+    });
+
+    const res = await client.callTool({
+      name: "edit_docket",
+      arguments: { old_string: "hi", new_string: "bye" },
+    });
+    expect(res.isError).toBe(true);
+    const content = res.content as Array<{ type: string; text?: string }>;
+    expect(content[0]?.text).toMatch(/MustReadFirst/);
 
     await client.close();
   });

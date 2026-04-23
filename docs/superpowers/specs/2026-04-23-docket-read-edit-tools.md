@@ -1,7 +1,7 @@
 # Docket HUD — `read_docket` / `edit_docket` tools
 
 **Date:** 2026-04-23
-**Status:** Draft — design agreed, implementation pending
+**Status:** Implemented — shipped alongside the spec
 **Scope:** Add two MCP tools that mirror Claude Code's `Read` / `Edit` tool pair, scoped to the daemon-owned HUD HTML buffer. Purpose is token efficiency for iterative UI updates.
 **Issue:** docklet-494
 **Predecessor:** docklet-878 (docket HUD) — this spec assumes `write_docket` / `hide_docket` and the `Docket` module from [`2026-04-23-docket-hud-design.md`](./2026-04-23-docket-hud-design.md) exist and the daemon already owns the singleton HUD.
@@ -88,7 +88,7 @@ Version is a monotonically increasing integer (daemon-local; resets on daemon re
 
 Any of these bump `version`:
 
-- `write_docket` — replaces `html`, bumps version.
+- `write_docket` — replaces `html`, bumps version. (Buffer method: `buffer.write(html)`.)
 - `edit_docket` — mutates `html`, bumps version.
 - `hide_docket` — sets `html = ""`, bumps version. (Rationale: subsequent reads should see `""`, not the stale pre-hide HTML.)
 - Daemon startup in `always` mode — initial placeholder counts as version 1, not 0. Clients must read before patching the placeholder.
@@ -132,7 +132,7 @@ export type EditResult =
 export interface DocketBuffer {
   getVersion(): number;
   read(clientId: ClientId): { html: string; version: number };
-  set(html: string): number;                                     // returns new version
+  write(html: string): number;                                   // returns new version
   hide(): number;                                                // sets html="", returns new version
   edit(clientId: ClientId, params: { old_string: string; new_string: string; replace_all?: boolean }): EditResult;
   forgetClient(clientId: ClientId): void;                        // called when a connection closes
@@ -186,10 +186,7 @@ daemon.onRequest("edit", async (params, meta) => {
 daemon.onConnectionClose((clientId) => buffer.forgetClient(clientId));
 ```
 
-> **Open wiring question:** the current `Daemon.onRequest` handler signature is `(params) => …`. We need to thread a per-connection `clientId` through to the handler. Two options:
-> (a) Extend the handler signature to `(params, meta: {clientId}) =>`.
-> (b) Attach the `clientId` inside the RPC envelope, exposed via a small helper.
-> (a) is cleaner and localizes the change. To be confirmed by reading the current `daemon.ts` RPC dispatch during implementation.
+> **Resolved:** `Daemon.onRequest` already passes `(params, ctx: { connId: string })` as of the shell-design baseline — no signature change needed. We also add a new `Daemon.onConnectionClose(listener)` hook so the buffer can evict `lastRead` entries for dead connections.
 
 ## 8. Tests
 
