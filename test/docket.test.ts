@@ -111,7 +111,7 @@ describe("Docket", () => {
     });
   });
 
-  test("concurrent show calls share a single probe", async () => {
+  test("concurrent show calls share a single probe and both HTMLs land", async () => {
     const { open, windows } = makeOpen((w) => {
       if (windows.length === 1) setTimeout(() => fireReady(w), 5);
     });
@@ -119,19 +119,29 @@ describe("Docket", () => {
 
     await Promise.all([docket.show("<p>a</p>"), docket.show("<p>b</p>")]);
 
-    // One probe + one real HUD. The loser's HTML should be the final setHTML
-    // (we allow either order, but there must be exactly two windows).
+    // One probe + one real HUD.
     expect(windows).toHaveLength(2);
+
+    // Whichever show won the race: its HTML went in via the real window's
+    // initial open() arg; the loser's HTML went in via setHTML. Together they
+    // cover {"<p>a</p>", "<p>b</p>"}.
+    const landed = [
+      windows[1].openArgs.html,
+      ...windows[1].setHTML.mock.calls.map((c) => c[0] as string),
+    ];
+    expect(landed).toEqual(expect.arrayContaining(["<p>a</p>", "<p>b</p>"]));
   });
 
-  test("probe timeout rejects show with an actionable error", async () => {
+  test("probe timeout rejects show and closes the probe window", async () => {
     vi.useFakeTimers();
-    const { open } = makeOpen(); // never fires ready
+    const { open, windows } = makeOpen(); // never fires ready
     const docket = createDocket({ open, probeTimeoutMs: 500 });
 
     const p = docket.show("<p>x</p>");
     vi.advanceTimersByTime(600);
     await expect(p).rejects.toThrow(/probe.*timed out/i);
+    // Leaking the probe window = leaking a native glimpse process in prod.
+    expect(windows[0].close).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
   });
 
