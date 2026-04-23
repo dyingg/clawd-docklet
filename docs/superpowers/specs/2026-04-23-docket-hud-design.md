@@ -4,6 +4,8 @@
 **Status:** Approved — ready for implementation
 **Scope:** First real tool(s) on top of the shell. Daemon owns a single glimpseui window ("docket") rendered top-right of the screen. Two MCP tools let any client set/hide its HTML. Lifecycle is configurable.
 **Issue:** docklet-878
+**Predecessor:** docklet-xbv (closed) — shipped `docket_show` tool and payload-only daemon ack (commit `dc95eab`); this spec completes the daemon→glimpse wiring that xbv deferred.
+**Depends on:** [`2026-04-23-clawd-docklet-shell-design.md`](./2026-04-23-clawd-docklet-shell-design.md) — the adapter/daemon singleton architecture this feature plugs into.
 
 ## 1. Purpose
 

@@ -87,7 +87,9 @@ src/protocol.ts   # newline-delimited JSON framing (Frame, encode, LineDecoder)
 src/paths.ts      # env-aware resolution of socket/pidfile/idle-timeout
 ```
 
-Design spec: `docs/superpowers/specs/2026-04-23-clawd-docklet-shell-design.md`.
+Design specs (read before touching these areas):
+- `docs/superpowers/specs/2026-04-23-clawd-docklet-shell-design.md` — adapter/daemon singleton architecture, env knobs, test layers.
+- `docs/superpowers/specs/2026-04-23-docket-hud-design.md` — the docket HUD: daemon-owned glimpseui window, `set_docket`/`hide_docket` tools, top-right positioning via screen probe, `CLAWD_DOCKLET_HUD_MODE` lifecycle.
 
 ## Conventions & Patterns
 
