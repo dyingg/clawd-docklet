@@ -35,11 +35,11 @@
   "author": "Dying",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/<owner>/agent-glance.git"
+    "url": "git+https://github.com/dyingg/agent-glance.git"
   },
-  "homepage": "https://github.com/<owner>/agent-glance#readme",
+  "homepage": "https://github.com/dyingg/agent-glance#readme",
   "bugs": {
-    "url": "https://github.com/<owner>/agent-glance/issues"
+    "url": "https://github.com/dyingg/agent-glance/issues"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
