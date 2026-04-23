@@ -16,6 +16,8 @@ export function freshEnv(overrides: Partial<FreshEnv> = {}): FreshEnv {
     CLAWD_DOCKLET_SOCKET: join(dir, "daemon.sock"),
     CLAWD_DOCKLET_PIDFILE: join(dir, "daemon.pid"),
     CLAWD_DOCKLET_IDLE_MS: "60000",
+    // Safety rail: tests never touch the user's menu bar.
+    CLAWD_DOCKLET_STATUS_DISABLED: "1",
     __tmpDir: dir,
     ...overrides,
   } as FreshEnv;

@@ -6,6 +6,8 @@ import { encode, LineDecoder, type Frame, type ReqFrame } from "./protocol.js";
 import { resolvePaths, type Paths } from "./paths.js";
 import { createDocket, PLACEHOLDER_HTML, type Docket } from "./docket.js";
 import { createDocketBuffer, type DocketBuffer, type EditParams } from "./docket-buffer.js";
+import { readConfig, writeConfig, type Anchor } from "./config.js";
+import { createStatusItem, type StatusItem } from "./status-item.js";
 
 type Handler = (params: unknown, ctx: { connId: string }) => Promise<unknown>;
 type ConnectionCloseListener = (connId: string) => void;
@@ -174,7 +176,11 @@ export async function runDaemonMain() {
   const paths = resolvePaths();
   try {
     const daemon = await startDaemon(paths);
-    const docket = createDocket({ disabled: paths.docketDisabled });
+    const initialConfig = await readConfig(paths.configPath);
+    const docket = createDocket({
+      disabled: paths.docketDisabled,
+      anchor: initialConfig.anchor,
+    });
     const buffer = createDocketBuffer({
       initialHtml: paths.hudMode === "always" ? PLACEHOLDER_HTML : "",
       onChange: (html) => {
@@ -192,10 +198,34 @@ export async function runDaemonMain() {
         console.error("docket: initial placeholder failed:", err);
       });
     }
+    let statusItem: StatusItem | null = null;
+    if (!paths.statusDisabled && !paths.docketDisabled) {
+      statusItem = createStatusItem({
+        initialAnchor: initialConfig.anchor,
+        onAnchor: async (anchor: Anchor) => {
+          try {
+            await writeConfig(paths.configPath, { anchor });
+          } catch (err) {
+            console.error("status-item: failed to persist anchor:", err);
+          }
+          try {
+            await docket.setAnchor(anchor);
+          } catch (err) {
+            console.error("status-item: failed to apply anchor:", err);
+          }
+        },
+        onHide: () => {
+          docket.hide().catch((err) =>
+            console.error("status-item: hide failed:", err),
+          );
+        },
+      });
+    }
     let shuttingDown = false;
     const shutdown = async () => {
       if (shuttingDown) return;
       shuttingDown = true;
+      try { statusItem?.close(); } catch { /* ignore */ }
       try { await docket.close(); } catch { /* ignore */ }
       try { await daemon.close(); } catch { /* ignore */ }
       process.exit(0);
