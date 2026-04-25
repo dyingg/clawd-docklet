@@ -13,20 +13,17 @@ An MCP server that provides a shared HUD — the **glance** — across AI agent 
 
 ## Install
 
-Add the MCP server to your agent of choice — `npx` will fetch the latest published version from npm:
+Run the installer — it delegates to [`add-mcp`](https://github.com/neondatabase/add-mcp)
+so you can choose supported clients interactively:
 
 ```bash
-# Claude Code
-claude mcp add agent-glance -- npx -y agent-glance
-
-# Codex
-codex mcp add agent-glance -- npx -y agent-glance
+npx agent-glance install
 ```
 
-To pin a version (recommended while WIP):
+For non-interactive global installation to all supported agents:
 
 ```bash
-claude mcp add agent-glance -- npx -y agent-glance@0.0.1
+npx agent-glance install -y --all
 ```
 
 Once added, restart your agent. The first tool call spawns the daemon; subsequent sessions attach to the same daemon and share the HUD.
