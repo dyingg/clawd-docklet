@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 
-export type EntryMode = "adapter" | "daemon" | "install" | "usage";
+export type EntryMode = "adapter" | "daemon" | "install";
 
 export type EntryModeInput = {
   argv: readonly string[];
@@ -14,23 +14,11 @@ const SERVER_COMMAND = "npx -y agent-glance@latest";
 export function resolveEntryMode(input: EntryModeInput): EntryMode {
   if (input.env.AGENT_GLANCE_ROLE === "daemon") return "daemon";
   if (input.argv[2] === "install") return "install";
-  if (input.stdinIsTTY && input.stdoutIsTTY) return "usage";
   return "adapter";
 }
 
 export function buildAddMcpArgs(args: readonly string[]): string[] {
   return ["-y", "add-mcp", SERVER_COMMAND, "-g", ...args];
-}
-
-export function printUsage(out: NodeJS.WritableStream = process.stdout): void {
-  out.write(`Usage:
-  npx agent-glance install
-
-Installs agent-glance into supported MCP clients via add-mcp.
-
-MCP clients should launch agent-glance as a stdio server:
-  npx -y agent-glance
-`);
 }
 
 type SpawnFn = typeof spawn;

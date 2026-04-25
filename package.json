@@ -1,6 +1,6 @@
 {
   "name": "agent-glance",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "MCP server providing a shared HUD ('glance') for AI agents — singleton daemon, stdio adapter, multi-client.",
   "license": "MIT",
   "type": "module",

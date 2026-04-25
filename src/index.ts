@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { runAdapterMain } from "./adapter.js";
-import { printUsage, resolveEntryMode, runInstallCommand } from "./cli.js";
+import { resolveEntryMode, runInstallCommand } from "./cli.js";
 import { runDaemonMain } from "./daemon.js";
 
 const mode = resolveEntryMode({
@@ -20,8 +20,6 @@ if (mode === "daemon") {
     console.error(err);
     process.exit(1);
   });
-} else if (mode === "usage") {
-  printUsage();
 } else {
   runAdapterMain().catch((err) => {
     console.error(err);

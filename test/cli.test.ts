@@ -33,7 +33,7 @@ describe("CLI entrypoint", () => {
     ).toBe("install");
   });
 
-  test("bare terminal launch prints usage instead of starting the MCP adapter", () => {
+  test("bare terminal launch remains the MCP adapter path", () => {
     expect(
       resolveEntryMode({
         argv: ["node", "agent-glance"],
@@ -41,7 +41,7 @@ describe("CLI entrypoint", () => {
         stdinIsTTY: true,
         stdoutIsTTY: true,
       }),
-    ).toBe("usage");
+    ).toBe("adapter");
   });
 
   test("bare non-TTY launch remains the MCP adapter path", () => {
